@@ -1,0 +1,180 @@
+---
+- name: Productivity and Office Applications
+  block:
+    - name: Check for Obsidian
+      command: which obsidian
+      register: obsidian_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Obsidian
+      block:
+        - name: Download Obsidian
+          get_url:
+            url: https://github.com/obsidianmd/obsidian-releases/releases/download/latest/Obsidian-latest.AppImage
+            dest: /tmp/Obsidian-latest.AppImage
+            mode: '0755'
+          ignore_errors: yes
+          register: obsidian_download
+
+        - name: Extract Obsidian AppImage
+          shell: |
+            cd /tmp
+            chmod +x Obsidian-latest.AppImage
+            ./Obsidian-latest.AppImage --appimage-extract
+            mv squashfs-root /opt/obsidian
+          when: obsidian_download.changed
+          ignore_errors: yes
+
+        - name: Create Obsidian symlink
+          file:
+            src: /opt/obsidian/AppRun
+            dest: /usr/local/bin/obsidian
+            state: link
+            force: yes
+          ignore_errors: yes
+
+        - name: Clean up installer
+          file:
+            path: /tmp/Obsidian-latest.AppImage
+            state: absent
+          ignore_errors: yes
+
+        - name: Log Obsidian installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Obsidian note-taking app - Status: Installed"
+            state: present
+          become: no
+          when: obsidian_download.changed
+
+    - name: Check for Zotero
+      command: ls /opt/Zotero_linux-x86_64/zotero
+      register: zotero_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Zotero
+      block:
+        - name: Download Zotero
+          get_url:
+            url: "https://www.zotero.org/download/client/dl?channel=release&platform=linux-x86_64"
+            dest: /tmp/Zotero.tar.bz2
+            timeout: 60
+          ignore_errors: yes
+          register: zotero_download
+
+        - name: Extract Zotero
+          shell: |
+            cd /opt
+            tar -xjf /tmp/Zotero.tar.bz2
+          when: zotero_download.changed
+          ignore_errors: yes
+
+        - name: Create Zotero symlink
+          file:
+            src: /opt/Zotero_linux-x86_64/zotero
+            dest: /usr/local/bin/zotero
+            state: link
+            force: yes
+          ignore_errors: yes
+
+        - name: Clean up installer
+          file:
+            path: /tmp/Zotero.tar.bz2
+            state: absent
+          ignore_errors: yes
+
+        - name: Log Zotero installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Zotero citation manager - Status: Installed"
+            state: present
+          become: no
+          when: zotero_download.changed
+
+    - name: Check for Google Chrome
+      command: which google-chrome
+      register: chrome_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Google Chrome
+      block:
+        - name: Add Chrome GPG key
+          apt_key:
+            url: https://dl-ssl.google.com/linux/linux_signing_key.pub
+            state: present
+          ignore_errors: yes
+
+        - name: Add Chrome repository
+          apt_repository:
+            repo: "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main"
+            state: present
+          ignore_errors: yes
+
+        - name: Install Google Chrome
+          apt:
+            name: google-chrome-stable
+            state: present
+            update_cache: yes
+          register: chrome_install
+          when: chrome_check.rc != 0
+          ignore_errors: yes
+
+        - name: Log Chrome installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Google Chrome browser - Status: {{ 'Installed' if chrome_install.changed else 'Already installed' }}"
+            state: present
+          become: no
+
+    - name: Check for WinApps
+      command: which winapps
+      register: winapps_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install WinApps
+      block:
+        - name: Check if git is available
+          command: which git
+          register: git_winapps_check
+          ignore_errors: yes
+          changed_when: false
+
+        - name: Clone WinApps repository
+          git:
+            repo: https://github.com/Fmstrat/winapps.git
+            dest: /opt/winapps
+          when: git_winapps_check.rc == 0 and winapps_check.rc != 0
+          ignore_errors: yes
+          register: winapps_clone
+
+        - name: Run WinApps installer
+          shell: cd /opt/winapps && ./install.sh
+          when: winapps_clone.changed
+          ignore_errors: yes
+          register: winapps_install
+
+        - name: Log WinApps installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ WinApps - Status: {{ 'Installed' if winapps_install.changed else 'Already installed or requires manual setup' }}"
+            state: present
+          become: no
+
+        - name: Log WinApps manual instructions
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "  Note: For Excel, Outlook, and WhatsApp, run 'winapps install <app>' after setup"
+            state: present
+          become: no
+
+  rescue:
+    - name: Log productivity tools error
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✗ Error during productivity tools installation - continuing with next section"
+        state: present
+      become: no

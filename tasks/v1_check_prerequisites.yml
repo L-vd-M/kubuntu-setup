@@ -1,0 +1,219 @@
+---
+- name: Check and Install Prerequisites
+  block:
+    - name: Log prerequisites check
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "\n========== PREREQUISITES CHECK ==========\nStarted: {{ ansible_date_time.iso8601 }}"
+        state: present
+      become: no
+
+    - name: Check if system is Debian-based
+      assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "This playbook requires a Debian-based system (Ubuntu, Kubuntu, Mint, etc.)"
+      register: debian_check
+
+    - name: Log Debian check
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ System is Debian-based: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+        state: present
+      become: no
+
+    - name: Check Python installation
+      command: python3 --version
+      register: python_check
+      changed_when: false
+
+    - name: Log Python check
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ Python installed: {{ python_check.stdout }}"
+        state: present
+      become: no
+
+    - name: Check apt availability
+      command: apt --version
+      register: apt_check
+      changed_when: false
+
+    - name: Log apt check
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ APT package manager available"
+        state: present
+      become: no
+
+    - name: Check internet connectivity
+      uri:
+        url: "https://www.google.com"
+        method: HEAD
+        status_code: [200, 301, 302, 307, 308]
+      register: internet_check
+      ignore_errors: yes
+
+    - name: Log internet check
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ Internet connectivity verified"
+        state: present
+      become: no
+      when: internet_check.status is defined and internet_check.status in [200, 301, 302, 307, 308]
+
+    - name: Check if curl is installed
+      command: which curl
+      register: curl_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install curl if missing
+      apt:
+        name: curl
+        state: present
+      when: curl_check.rc != 0
+      become: yes
+      ignore_errors: yes
+
+    - name: Log curl installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ curl: {{ 'Already installed' if curl_check.rc == 0 else 'Installed' }}"
+        state: present
+      become: no
+
+    - name: Check if wget is installed
+      command: which wget
+      register: wget_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install wget if missing
+      apt:
+        name: wget
+        state: present
+      when: wget_check.rc != 0
+      become: yes
+      ignore_errors: yes
+
+    - name: Log wget installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ wget: {{ 'Already installed' if wget_check.rc == 0 else 'Installed' }}"
+        state: present
+      become: no
+
+    - name: Check if git is installed
+      command: which git
+      register: git_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install git if missing
+      apt:
+        name: git
+        state: present
+      when: git_check.rc != 0
+      become: yes
+      ignore_errors: yes
+
+    - name: Log git installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ git: {{ 'Already installed' if git_check.rc == 0 else 'Installed' }}"
+        state: present
+      become: no
+
+    - name: Check if build-essential is installed
+      command: dpkg -l | grep build-essential
+      register: build_essential_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install build-essential if missing
+      apt:
+        name: build-essential
+        state: present
+      when: build_essential_check.rc != 0
+      become: yes
+      ignore_errors: yes
+
+    - name: Log build-essential installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ build-essential: {{ 'Already installed' if build_essential_check.rc == 0 else 'Installed' }}"
+        state: present
+      become: no
+
+    - name: Check if pciutils is installed
+      command: which lspci
+      register: pciutils_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install pciutils if missing
+      apt:
+        name: pciutils
+        state: present
+      when: pciutils_check.rc != 0
+      become: yes
+      ignore_errors: yes
+
+    - name: Log pciutils installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ pciutils: {{ 'Already installed' if pciutils_check.rc == 0 else 'Installed' }}"
+        state: present
+      become: no
+
+    - name: Check if sudo is installed
+      command: which sudo
+      register: sudo_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Log sudo check
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ sudo: Installed"
+        state: present
+      become: no
+      when: sudo_check.rc == 0
+
+    - name: Log prerequisites completion
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ All prerequisites verified/installed successfully\nCompleted: {{ ansible_date_time.iso8601 }}"
+        state: present
+      become: no
+
+  rescue:
+    - name: Log prerequisites check failure
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✗ Prerequisites check failed. Please review the error above."
+        state: present
+      become: no
+      ignore_errors: yes
+
+    - name: Display prerequisites error
+      debug:
+        msg: |
+          ========================================
+          ✗ PREREQUISITES CHECK FAILED
+          ========================================
+          
+          One or more prerequisites are missing or not met.
+          Please ensure:
+          
+          1. Running on a Debian-based system (Ubuntu, Kubuntu, Mint, etc.)
+          2. Running with sudo: ansible-playbook setup.yml --ask-become-pass
+          3. Internet connection is available
+          4. Python 3 is installed
+          5. APT package manager is working
+          
+          Check the log file for details:
+          {{ log_file }}
+          ========================================
+      ignore_errors: yes

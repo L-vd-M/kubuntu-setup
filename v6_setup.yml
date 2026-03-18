@@ -1,0 +1,218 @@
+---
+- name: Kubuntu PC Setup Playbook
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  vars:
+    log_dir: "{{ ansible_env.HOME }}/Documents/Ansible_Installation_Log"
+    log_file: "{{ log_dir }}/kubuntu_setup_{{ ansible_date_time.iso8601_basic_short }}.log"
+
+  pre_tasks:
+    - name: Create log directory
+      file:
+        path: "{{ log_dir }}"
+        state: directory
+        mode: '0755'
+      become: no
+
+    - name: Initialize log file
+      copy:
+        content: |
+          ========================================
+          Kubuntu Setup Playbook Execution Log
+          ========================================
+          Started: {{ ansible_date_time.iso8601 }}
+          Hostname: {{ ansible_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Architecture: {{ ansible_architecture }}
+          ========================================
+        dest: "{{ log_file }}"
+        mode: '0644'
+      become: no
+
+    - name: Log system information
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "Python Version: {{ ansible_python_version }}"
+        - "Ansible Version: {{ ansible_version.full }}"
+        - "Total Memory: {{ ansible_memtotal_mb }} MB"
+      become: no
+
+    - name: Clean up old GPG keys
+      shell: |
+        sudo rm -f /usr/share/keyrings/microsoft.gpg
+        sudo rm -f /usr/share/keyrings/nodesource.gpg
+        sudo rm -f /usr/share/keyrings/spotify.gpg
+      become: yes
+      ignore_errors: yes
+
+  tasks:
+    - name: Add Repositories and GPG Keys
+      block:
+        - name: Log repository addition start
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "\n========== ADDING REPOSITORIES & GPG KEYS ==========\nStarted: {{ ansible_date_time.iso8601 }}"
+            state: present
+          become: no
+
+        # Node.js
+        - name: Download NodeSource GPG key
+          get_url:
+            url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+            dest: /usr/share/keyrings/nodesource.gpg
+          become: yes
+
+        - name: Add NodeSource repository for Node.js 18.x
+          apt_repository:
+            repo: "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x jammy main"
+            state: present
+          become: yes
+
+        # Microsoft GPG key for VS Code
+        - name: Download VS Code GPG key
+          get_url:
+            url: https://packages.microsoft.com/keys/microsoft.asc
+            dest: /usr/share/keyrings/microsoft.gpg
+          become: yes
+
+        - name: Add VS Code repository
+          apt_repository:
+            repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main"
+            state: present
+          become: yes
+
+        # Spotify GPG key
+        - name: Download Spotify GPG key
+          get_url:
+            url: https://download.spotify.com/debian/pubkey_5384CE82BA52C83A.gpg
+            dest: /usr/share/keyrings/spotify.gpg
+          become: yes
+
+        - name: Add Spotify repository
+          apt_repository:
+            repo: "deb [signed-by=/usr/share/keyrings/spotify.gpg] http://repository.spotify.com stable non-free"
+            state: present
+          become: yes
+
+        - name: Log repository addition complete
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ All repositories and GPG keys added"
+            state: present
+          become: no
+
+    - name: Update apt cache after adding all repositories
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      become: yes
+
+    - name: Log final apt cache update
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ APT cache updated after adding new repositories"
+        state: present
+      become: no
+
+    - name: Install NVIDIA drivers
+      block:
+        - name: Install NVIDIA driver
+          apt:
+            name: nvidia-driver-535
+            state: present
+          become: yes
+
+        - name: Log NVIDIA driver installation check
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ NVIDIA drivers installed"
+            state: present
+          become: no
+
+    - name: Install remaining applications
+      block:
+        - name: Install VS Code
+          apt:
+            name: code
+            state: present
+          become: yes
+
+        - name: Install Node.js
+          apt:
+            name: nodejs
+            state: present
+          become: yes
+
+        - name: Install Spotify
+          apt:
+            name: spotify-client
+            state: present
+          become: yes
+
+        - name: Install Zotero
+          block:
+            - name: Download Zotero
+              get_url:
+                url: "https://www.zotero.org/download/client/dl?channel=release&platform=linux-x86_64"
+                dest: /tmp/Zotero.tar.xz
+              ignore_errors: yes
+
+            - name: Extract Zotero
+              unarchive:
+                src: /tmp/Zotero.tar.xz
+                dest: /opt/
+                remote_src: yes
+              become: yes
+
+            - name: Create Zotero symlink
+              file:
+                src: /opt/Zotero/zotero
+                dest: /usr/local/bin/zotero
+                state: link
+              become: yes
+
+        - name: Log applications installation completion
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Applications installed successfully"
+            state: present
+          become: no
+
+  post_tasks:
+    - name: Cleanup and summary
+      block:
+        - name: Clean package cache
+          apt:
+            autoclean: yes
+            autoremove: yes
+          become: yes
+          ignore_errors: yes
+
+        - name: Log completion
+          lineinfile:
+            path: "{{ log_file }}"
+            line: |
+              ========================================
+              ✓ KUBUNTU SETUP COMPLETED SUCCESSFULLY!
+              ========================================
+              Completed: {{ ansible_date_time.iso8601 }}
+              Log file: {{ log_file }}
+              ========================================
+          become: no
+
+        - name: Display completion message
+          debug:
+            msg: |
+              ========================================
+              ✓ Installation Complete!
+              ========================================
+              Log: {{ log_file }}
+              Some applications may require a reboot or manual refresh of the desktop environment to appear in the menu.
+              Consider running `killall plasmashell && plasmashell &` to refresh KDE, or reboot.
+              ========================================
+          become: no

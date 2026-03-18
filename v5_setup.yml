@@ -1,0 +1,471 @@
+---
+- name: Kubuntu PC Setup Playbook
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  
+  vars:
+    log_dir: "{{ ansible_env.HOME }}/Documents/Ansible_Installation_Log"
+    log_file: "{{ log_dir }}/kubuntu_setup_{{ ansible_date_time.iso8601_basic_short }}.log"
+    
+  pre_tasks:
+    - name: Create log directory
+      file:
+        path: "{{ log_dir }}"
+        state: directory
+        mode: '0755'
+      become: no
+
+    - name: Initialize log file
+      copy:
+        content: |
+          ========================================
+          Kubuntu Setup Playbook Execution Log
+          ========================================
+          Started: {{ ansible_date_time.iso8601 }}
+          Hostname: {{ ansible_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Architecture: {{ ansible_architecture }}
+          ========================================
+          
+        dest: "{{ log_file }}"
+        mode: '0644'
+      become: no
+
+    - name: Log system information
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "Python Version: {{ ansible_python_version }}"
+        - "Ansible Version: {{ ansible_version.full }}"
+        - "Total Memory: {{ ansible_memtotal_mb }} MB"
+        - ""
+      become: no
+
+    - name: Check and Install Prerequisites
+      include_tasks: tasks/check_prerequisites.yml
+
+    - name: Update package cache and upgrade system (initial)
+      block:
+        - name: Update package cache
+          apt:
+            update_cache: yes
+            cache_valid_time: 3600
+          become: yes
+
+        - name: Upgrade all packages
+          apt:
+            upgrade: dist
+          become: yes
+
+        - name: Log initial system update/upgrade
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Initial package cache updated and system upgraded"
+            state: present
+          become: no
+
+  tasks:
+    - name: Add Repositories and GPG Keys
+      block:
+        - name: Log repository addition start
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "\n========== ADDING REPOSITORIES & GPG KEYS ==========\nStarted: {{ ansible_date_time.iso8601 }}"
+            state: present
+          become: no
+
+        # NVIDIA PPA
+        - name: Add NVIDIA Graphics Drivers PPA
+          apt_repository:
+            repo: "ppa:graphics-drivers/ppa"
+            state: present
+          become: yes
+          ignore_errors: yes # Allow to continue if PPA key handling is problematic
+
+        # Node.js
+        - name: Download NodeSource GPG key
+          get_url:
+            url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+            dest: /tmp/nodesource.gpg
+            mode: '0644'
+          become: yes
+          ignore_errors: yes
+
+        - name: Copy NodeSource GPG key to trusted keyrings
+          copy:
+            src: /tmp/nodesource.gpg
+            dest: /usr/share/keyrings/nodesource.gpg
+            mode: '0644'
+          become: yes
+          ignore_errors: yes
+
+        - name: Add NodeSource repository for Node.js 18.x
+          apt_repository:
+            repo: "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x jammy main" # Use 'jammy' for 24.04 compatibility
+            state: present
+            filename: nodesource
+          become: yes
+          ignore_errors: yes
+
+        # VS Code
+        - name: Download Microsoft GPG key for VS Code
+          get_url:
+            url: https://packages.microsoft.com/keys/microsoft.asc
+            dest: /tmp/microsoft.asc
+            mode: '0644'
+          become: yes
+          ignore_errors: yes
+
+        - name: Copy Microsoft GPG key to trusted keyrings
+          copy:
+            src: /tmp/microsoft.asc
+            dest: /usr/share/keyrings/microsoft.gpg
+            mode: '0644'
+          become: yes
+          ignore_errors: yes
+
+        - name: Add VS Code repository
+          apt_repository:
+            repo: "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main"
+            state: present
+            filename: vscode
+          become: yes
+          ignore_errors: yes
+
+        # Spotify
+        - name: Download Spotify GPG key
+          get_url:
+            url: https://download.spotify.com/debian/pubkey_6224F9941A8AA6D1.gpg
+            dest: /tmp/spotify.gpg
+            mode: '0644'
+          become: yes
+          ignore_errors: yes
+
+        - name: Copy Spotify GPG key to trusted keyrings
+          copy:
+            src: /tmp/spotify.gpg
+            dest: /usr/share/keyrings/spotify.gpg
+            mode: '0644'
+          become: yes
+          ignore_errors: yes
+
+        - name: Add Spotify repository
+          apt_repository:
+            repo: "deb [signed-by=/usr/share/keyrings/spotify.gpg] http://repository.spotify.com stable non-free"
+            state: present
+            filename: spotify
+          become: yes
+          ignore_errors: yes
+
+        # Google Chrome
+        - name: Download Google Chrome GPG key
+          get_url:
+            url: https://dl-ssl.google.com/linux/linux_signing_key.pub
+            dest: /tmp/google-chrome.gpg
+            mode: '0644'
+          become: yes
+          ignore_errors: yes
+
+        - name: Copy Google Chrome GPG key to trusted keyrings
+          copy:
+            src: /tmp/google-chrome.gpg
+            dest: /usr/share/keyrings/google-chrome.gpg
+            mode: '0644'
+          become: yes
+          ignore_errors: yes
+
+        - name: Add Google Chrome repository
+          apt_repository:
+            repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main"
+            state: present
+            filename: google-chrome
+          become: yes
+          ignore_errors: yes
+
+        - name: Log repository addition complete
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ All repositories and GPG keys added"
+            state: present
+          become: no
+
+    - name: Update apt cache after adding all repositories
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      become: yes
+
+    - name: Log final apt cache update
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ APT cache updated after adding new repositories"
+        state: present
+      become: no
+
+    - name: Install graphics drivers
+      block:
+        - name: Log graphics start
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "\n========== GRAPHICS DRIVERS ==========\nStarted: {{ ansible_date_time.iso8601 }}"
+            state: present
+          become: no
+
+        - name: Include graphics tasks
+          include_tasks: tasks/graphics.yml
+
+        - name: Log graphics complete
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Graphics drivers installation completed"
+            state: present
+          become: no
+
+    - name: Install system utilities
+      block:
+        - name: Log system start
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "\n========== SYSTEM UTILITIES ==========\nStarted: {{ ansible_date_time.iso8601 }}"
+            state: present
+          become: no
+
+        - name: Install basic utilities
+          apt:
+            name:
+              - zip
+              - gzip
+              - tar
+              - nano
+              - htop
+              - vim
+              - curl
+              - wget
+              - git
+            state: present
+          become: yes
+          ignore_errors: yes
+
+        - name: Install virtualization
+          apt:
+            name:
+              - virt-manager
+              - libvirt-daemon-system
+              - qemu-system-x86
+              - bridge-utils
+            state: present
+          become: yes
+          ignore_errors: yes
+
+        - name: Log system complete
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ System utilities installed"
+            state: present
+          become: no
+
+    - name: Install programming tools
+      block:
+        - name: Log programming start
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "\n========== PROGRAMMING TOOLS ==========\nStarted: {{ ansible_date_time.iso8601 }}"
+            state: present
+          become: no
+
+        - name: Install Node.js
+          apt:
+            name: nodejs
+            state: present
+          become: yes
+          ignore_errors: yes
+
+        - name: Install VS Code
+          apt:
+            name: code
+            state: present
+          become: yes
+          ignore_errors: yes
+
+        - name: Log Antigravity IDE (Not available via standard package manager)
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "Note: Antigravity IDE is not available via standard package manager and requires manual installation."
+            state: present
+          become: no
+
+        - name: Log programming complete
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Programming tools installed"
+            state: present
+          become: no
+
+    - name: Install productivity apps
+      block:
+        - name: Log productivity start
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "\n========== PRODUCTIVITY APPS ==========\nStarted: {{ ansible_date_time.iso8601 }}"
+            state: present
+          become: no
+
+        - name: Install Google Chrome
+          apt:
+            name: google-chrome-stable
+            state: present
+          become: yes
+          ignore_errors: yes
+
+        - name: Download and install Zotero
+          block:
+            - name: Get Zotero Linux download URL
+              uri:
+                url: "https://www.zotero.org/download/client/dl?channel=release&platform=linux-x86_64"
+                method: GET
+                follow_redirects: yes
+                return_content: no
+                status_code: [200, 301, 302, 307, 308]
+              register: zotero_redirect
+              ignore_errors: yes
+
+            - name: Download Zotero tarball
+              get_url:
+                url: "{{ zotero_redirect.url }}" # Use the resolved URL after redirects
+                dest: /tmp/Zotero.tar.xz # Zotero now provides .tar.xz
+                timeout: 120
+              when: zotero_redirect.status is defined and zotero_redirect.status in [200, 301, 302, 307, 308]
+              ignore_errors: yes
+              register: zotero_dl
+
+            - name: Extract Zotero
+              unarchive:
+                src: /tmp/Zotero.tar.xz
+                dest: /opt/
+                remote_src: yes
+                extra_opts: [--strip-components=1]
+              become: yes
+              when: zotero_dl.changed and zotero_dl.url is defined
+              ignore_errors: yes
+              register: zotero_extract
+
+            - name: Create Zotero symlink
+              file:
+                src: /opt/Zotero/zotero
+                dest: /usr/local/bin/zotero
+                state: link
+              become: yes
+              when: zotero_extract.changed or (zotero_extract.skipped is defined and not zotero_extract.skipped)
+              ignore_errors: yes
+          ignore_errors: yes # Block level ignore for Zotero
+
+        - name: Log productivity complete
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Productivity apps installed"
+            state: present
+          become: no
+
+    - name: Install media apps
+      block:
+        - name: Log media start
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "\n========== MEDIA APPLICATIONS ==========\nStarted: {{ ansible_date_time.iso8601 }}"
+            state: present
+          become: no
+
+        - name: Install OBS Studio
+          apt:
+            name: obs-studio
+            state: present
+          become: yes
+          ignore_errors: yes
+
+        - name: Install VLC and FFmpeg
+          apt:
+            name:
+              - vlc
+              - ffmpeg
+            state: present
+          become: yes
+          ignore_errors: yes
+
+        - name: Install Discord
+          block:
+            - name: Download Discord
+              get_url:
+                url: https://discord.com/api/download?platform=linux&format=deb
+                dest: /tmp/discord.deb
+                timeout: 60
+              ignore_errors: yes
+              register: discord_dl
+
+            - name: Install Discord
+              apt:
+                deb: /tmp/discord.deb
+              become: yes
+              when: discord_dl.changed
+              ignore_errors: yes
+          ignore_errors: yes
+
+        - name: Install Spotify
+          apt:
+            name: spotify-client
+            state: present
+          become: yes
+          ignore_errors: yes
+
+        - name: Log media complete
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Media applications installed"
+            state: present
+          become: no
+
+  post_tasks:
+    - name: Cleanup and summary
+      block:
+        - name: Clean package cache
+          apt:
+            autoclean: yes
+            autoremove: yes
+          become: yes
+          ignore_errors: yes
+
+        - name: Update desktop database and refresh system cache
+          shell: |
+            sudo update-desktop-database
+            kbuildsycoca5 --noincremental
+          become: yes
+          ignore_errors: yes
+
+        - name: Log completion
+          lineinfile:
+            path: "{{ log_file }}"
+            line: |
+              
+              ========================================
+              ✓ KUBUNTU SETUP COMPLETED SUCCESSFULLY!
+              ========================================
+              Completed: {{ ansible_date_time.iso8601 }}
+              Log file: {{ log_file }}
+              ========================================
+            state: present
+          become: no
+
+        - name: Display completion message
+          debug:
+            msg: |
+              ========================================
+              ✓ Installation Complete!
+              ========================================
+              Log: {{ log_file }}
+              
+              Some applications may require a reboot or manual refresh of the desktop environment to appear in the menu.
+              Consider running `killall plasmashell && plasmashell &` to refresh KDE, or simply reboot.
+              ========================================
+          become: no

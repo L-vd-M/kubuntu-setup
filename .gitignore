@@ -1,0 +1,24 @@
+# Ansible / Python
+*.retry
+*.pyc
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+
+# Editors
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs (generated at runtime)
+*.log
+
+# Backup files
+*.bak

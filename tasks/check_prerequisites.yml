@@ -1,0 +1,180 @@
+---
+# Check if system is Debian-based
+- name: Check if system is Debian-based
+  assert:
+    that:
+      - ansible_os_family == "Debian"
+    fail_msg: "This playbook is intended for Debian-based systems only."
+
+# Check Python installation
+- name: Check Python installation
+  command: python3 --version
+  register: python_check
+  changed_when: false
+
+- name: Log Python check
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "Python is installed: {{ python_check.stdout }}"
+    state: present
+  become: false
+
+# Check apt availability
+- name: Check apt availability
+  command: apt --version
+  register: apt_check
+  changed_when: false
+
+- name: Log apt check
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "APT is available: {{ apt_check.stdout }}"
+    state: present
+  become: false
+
+# Check internet connectivity
+- name: Check internet connectivity
+  command: ping -c 1 google.com
+  register: internet_check
+  changed_when: false
+  ignore_errors: true
+
+- name: Log internet check
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "Internet connectivity: {{ 'Available' if internet_check.rc == 0 else 'Not Available' }}"
+    state: present
+  become: false
+
+# Check if curl is installed
+- name: Check if curl is installed
+  command: curl --version
+  register: curl_check
+  changed_when: false
+  ignore_errors: true
+
+- name: Install curl if missing
+  apt:
+    name: curl
+    state: present
+  become: true
+  when: curl_check.rc != 0
+  ignore_errors: true
+
+- name: Log curl installation
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "Curl installation attempted: {{ 'Installed' if curl_check.rc == 0 else 'Already installed' }}"
+    state: present
+  become: false
+
+# Check if wget is installed
+- name: Check if wget is installed
+  command: wget --version
+  register: wget_check
+  changed_when: false
+  ignore_errors: true
+
+- name: Install wget if missing
+  apt:
+    name: wget
+    state: present
+  become: true
+  when: wget_check.rc != 0
+  ignore_errors: true
+
+- name: Log wget installation
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "Wget installation attempted: {{ 'Installed' if wget_check.rc == 0 else 'Already installed' }}"
+    state: present
+  become: false
+
+# Check if git is installed
+- name: Check if git is installed
+  command: git --version
+  register: git_check
+  changed_when: false
+  ignore_errors: true
+
+- name: Install git if missing
+  apt:
+    name: git
+    state: present
+  become: true
+  when: git_check.rc != 0
+  ignore_errors: true
+
+- name: Log git installation
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "Git installation attempted: {{ 'Installed' if git_check.rc == 0 else 'Already installed' }}"
+    state: present
+  become: false
+
+# Check if build-essential is installed
+- name: Check if build-essential is installed
+  shell: dpkg-query -W -f='${Status}' build-essential 2>/dev/null | grep -c "ok installed"
+  register: build_essential_check
+  failed_when: false
+  changed_when: false
+  become: true
+
+- name: Install build-essential if missing
+  apt:
+    name: build-essential
+    state: present
+  become: true
+  when: build_essential_check.stdout == "0"
+  ignore_errors: true
+
+- name: Log build-essential installation
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "Build-essential installation attempted: {{ 'Installed' if build_essential_check.stdout == '1' else 'Already installed' }}"
+    state: present
+  become: false
+
+# Check if pciutils is installed
+- name: Check if pciutils is installed
+  command: lspci
+  register: pciutils_check
+  changed_when: false
+  ignore_errors: true
+
+- name: Install pciutils if missing
+  apt:
+    name: pciutils
+    state: present
+  become: true
+  when: pciutils_check.rc != 0
+  ignore_errors: true
+
+- name: Log pciutils installation
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "Pciutils installation attempted: {{ 'Installed' if pciutils_check.rc == 0 else 'Already installed' }}"
+    state: present
+  become: false
+
+# Check if sudo is installed
+- name: Check if sudo is installed
+  command: sudo --version
+  register: sudo_check
+  changed_when: false
+  ignore_errors: true
+
+- name: Log sudo check
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "Sudo is installed: {{ 'Installed' if sudo_check.rc == 0 else 'NOT FOUND' }}"
+    state: present
+  become: false
+
+# Log prerequisites completion
+- name: Log prerequisites completion
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "Prerequisite checks completed successfully."
+    state: present
+  become: false

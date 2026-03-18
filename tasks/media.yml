@@ -1,0 +1,145 @@
+---
+- name: Media and Communication Applications
+  block:
+    - name: Check for Discord
+      command: which discord
+      register: discord_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Discord
+      block:
+        - name: Download Discord
+          get_url:
+            url: https://discord.com/api/download?platform=linux&format=deb
+            dest: /tmp/discord.deb
+            mode: '0644'
+            timeout: 60
+          ignore_errors: yes
+          register: discord_download
+
+        - name: Install Discord package
+          apt:
+            deb: /tmp/discord.deb
+            state: present
+          when: discord_download.changed
+          ignore_errors: yes
+          register: discord_install
+
+        - name: Clean up Discord installer
+          file:
+            path: /tmp/discord.deb
+            state: absent
+          ignore_errors: yes
+
+        - name: Log Discord installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Discord chat application - Status: {{ 'Installed' if discord_install.changed else 'Already installed' }}"
+            state: present
+          become: no
+
+    - name: Check for OBS Studio
+      command: which obs
+      register: obs_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install OBS Studio
+      apt:
+        name: obs-studio
+        state: present
+      register: obs_install
+      when: obs_check.rc != 0
+      ignore_errors: yes
+
+    - name: Log OBS Studio installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ OBS Studio screen recording - Status: {{ 'Installed' if obs_install.changed else 'Already installed' }}"
+        state: present
+      become: no
+
+    - name: Check for Spotify
+      command: which spotify
+      register: spotify_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Spotify
+      block:
+        - name: Add Spotify repository key
+          apt_key:
+            url: https://download.spotify.com/debian/pubkey_6224F9941A8AA6D1.gpg
+            state: present
+          ignore_errors: yes
+
+        - name: Add Spotify repository
+          apt_repository:
+            repo: "deb http://repository.spotify.com stable non-free"
+            state: present
+          ignore_errors: yes
+
+        - name: Install Spotify
+          apt:
+            name: spotify-client
+            state: present
+            update_cache: yes
+          register: spotify_install
+          when: spotify_check.rc != 0
+          ignore_errors: yes
+
+        - name: Log Spotify installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Spotify music streaming - Status: {{ 'Installed' if spotify_install.changed else 'Already installed' }}"
+            state: present
+          become: no
+
+    - name: Check for media utilities
+      block:
+        - name: Check for VLC
+          command: which vlc
+          register: vlc_check
+          ignore_errors: yes
+          changed_when: false
+
+        - name: Check for FFmpeg
+          command: which ffmpeg
+          register: ffmpeg_check
+          ignore_errors: yes
+          changed_when: false
+
+    - name: Install media utilities
+      apt:
+        name:
+          - vlc
+          - ffmpeg
+        state: present
+      register: media_utils_install
+      ignore_errors: yes
+
+    - name: Log media utilities installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ Media utilities (VLC, FFmpeg) - Status: {{ media_utils_install.changed | ternary('Installed', 'Already installed') }}"
+        state: present
+      become: no
+
+    - name: Log WinApps manual setup instructions
+      lineinfile:
+        path: "{{ log_file }}"
+        line: |
+          
+          Note: WhatsApp can be installed via WinApps.
+          After WinApps setup, run: winapps install whatsapp
+        state: present
+      become: no
+
+  rescue:
+    - name: Log media tools error
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✗ Error during media tools installation"
+        state: present
+      become: no

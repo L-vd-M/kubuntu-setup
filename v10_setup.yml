@@ -1,0 +1,561 @@
+---
+- name: Kubuntu PC Setup Playbook
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    log_dir: "{{ ansible_env.HOME }}/Documents/Ansible_Installation_Log"
+    log_file: >-
+      {{ log_dir }}/kubuntu_setup_{{ ansible_date_time.iso8601_basic_short }}.log
+
+  pre_tasks:
+    - name: Create log directory
+      file:
+        path: "{{ log_dir }}"
+        state: directory
+        mode: '0755'
+      become: false
+
+    - name: Initialize log file
+      copy:
+        content: |
+          ========================================
+          Kubuntu Setup Playbook Execution Log
+          ========================================
+          Started: {{ ansible_date_time.iso8601 }}
+          Hostname: {{ ansible_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Architecture: {{ ansible_architecture }}
+          ========================================
+        dest: "{{ log_file }}"
+        mode: '0644'
+      become: false
+
+    - name: Log system information
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "Python Version: {{ ansible_python_version }}"
+        - "Ansible Version: {{ ansible_version.full }}"
+        - "Total Memory: {{ ansible_memtotal_mb }} MB"
+      become: false
+
+    - name: Nuclear cleanup of all conflicting repo sources and GPG keys
+      shell: |
+        # Remove ALL NodeSource lists (node_18, node_20, any version)
+        rm -f /etc/apt/sources.list.d/nodesource.list
+        rm -f /etc/apt/sources.list.d/nodesource.list.save
+        find /etc/apt/sources.list.d/ -name "*nodesource*" -delete
+        find /etc/apt/sources.list.d/ -name "*nodejs*" -delete
+
+        # Remove VS Code lists
+        rm -f /etc/apt/sources.list.d/vscode.list
+        rm -f /etc/apt/sources.list.d/vscode.list.save
+        rm -f /etc/apt/sources.list.d/microsoft-prod.list
+
+        # Remove Spotify lists
+        rm -f /etc/apt/sources.list.d/spotify.list
+        rm -f /etc/apt/sources.list.d/spotify.list.save
+
+        # Remove Google Chrome lists
+        rm -f /etc/apt/sources.list.d/google-chrome.list
+        rm -f /etc/apt/sources.list.d/google-chrome.list.save
+
+        # Remove ALL keyrings for these services
+        rm -f /usr/share/keyrings/microsoft.gpg
+        rm -f /usr/share/keyrings/microsoft-archive-keyring.gpg
+        rm -f /usr/share/keyrings/packages.microsoft.gpg
+        rm -f /usr/share/keyrings/nodesource.gpg
+        rm -f /usr/share/keyrings/nodesource-keyring.gpg
+        rm -f /usr/share/keyrings/spotify.gpg
+        rm -f /usr/share/keyrings/spotify-archive-keyring.gpg
+        rm -f /usr/share/keyrings/google-chrome.gpg
+        rm -f /usr/share/keyrings/google-archive-keyring.gpg
+
+        # Remove legacy trusted.gpg entries for graphics-drivers PPA
+        apt-key del "$(apt-key list 2>/dev/null \
+          | grep -B1 'graphics-drivers' \
+          | grep 'pub' \
+          | awk '{print $2}' \
+          | cut -d'/' -f2)" 2>/dev/null || true
+
+        # Remove graphics-drivers PPA list files
+        find /etc/apt/sources.list.d/ \
+          -name "*graphics-drivers*" -delete 2>/dev/null || true
+        find /var/cache/apt/ \
+          -name "*graphics-drivers*" -delete 2>/dev/null || true
+
+        echo "Cleanup complete"
+      become: true
+      ignore_errors: true
+
+    - name: Log cleanup complete
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "Pre-task cleanup of conflicting keys and repos completed"
+        state: present
+      become: false
+
+  tasks:
+
+    # -------------------------------------------------------
+    # SECTION 1: PREREQUISITES
+    # -------------------------------------------------------
+    - name: Check and Install Prerequisites
+      include_tasks: tasks/check_prerequisites.yml
+
+    # -------------------------------------------------------
+    # SECTION 2: INITIAL SYSTEM UPDATE
+    # -------------------------------------------------------
+    - name: Update package cache (pre-repo setup)
+      apt:
+        update_cache: true
+      become: true
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+      become: true
+
+    - name: Log initial upgrade
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "Package cache updated and system upgraded"
+        state: present
+      become: false
+
+    # -------------------------------------------------------
+    # SECTION 3: GPG KEYS AND REPOSITORIES
+    # All keys: curl | gpg --dearmor -> binary .gpg file
+    # All repos: shell + tee (no apt_repository to avoid
+    # legacy trusted.gpg issues)
+    # -------------------------------------------------------
+    - name: Log repository setup start
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "========== CONFIGURING REPOSITORIES =========="
+        state: present
+      become: false
+
+    # --- VS Code ---
+    - name: Add Microsoft VS Code GPG key (dearmored binary)
+      shell: |
+        curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+          | gpg --dearmor \
+          | tee /usr/share/keyrings/microsoft.gpg > /dev/null
+        chmod 644 /usr/share/keyrings/microsoft.gpg
+      become: true
+      ignore_errors: true
+
+    - name: Add VS Code repository
+      shell: |
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] \
+        https://packages.microsoft.com/repos/code stable main" \
+          | tee /etc/apt/sources.list.d/vscode.list > /dev/null
+      become: true
+      ignore_errors: true
+
+    # --- NodeSource (Node.js 20.x via official script) ---
+    - name: Add NodeSource Node.js 20.x via official setup script
+      shell: |
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+      become: true
+      ignore_errors: true
+
+    # --- Spotify ---
+    - name: Add Spotify GPG key (dearmored binary)
+      shell: |
+        curl -fsSL \
+          https://download.spotify.com/debian/pubkey_6224F9941A8AA6D1.gpg \
+          | gpg --dearmor \
+          | tee /usr/share/keyrings/spotify.gpg > /dev/null
+        chmod 644 /usr/share/keyrings/spotify.gpg
+      become: true
+      ignore_errors: true
+
+    - name: Add Spotify repository
+      shell: |
+        echo "deb [signed-by=/usr/share/keyrings/spotify.gpg] \
+        http://repository.spotify.com stable non-free" \
+          | tee /etc/apt/sources.list.d/spotify.list > /dev/null
+      become: true
+      ignore_errors: true
+
+    # --- Google Chrome ---
+    - name: Add Google Chrome GPG key (dearmored binary)
+      shell: |
+        curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+          | gpg --dearmor \
+          | tee /usr/share/keyrings/google-chrome.gpg > /dev/null
+        chmod 644 /usr/share/keyrings/google-chrome.gpg
+      become: true
+      ignore_errors: true
+
+    - name: Add Google Chrome repository
+      shell: |
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] \
+        http://dl.google.com/linux/chrome/deb/ stable main" \
+          | tee /etc/apt/sources.list.d/google-chrome.list > /dev/null
+      become: true
+      ignore_errors: true
+
+    # --- NVIDIA graphics-drivers PPA (manual, no apt_repository) ---
+    - name: Add graphics-drivers PPA GPG key to keyrings (dearmored)
+      shell: |
+        gpg --keyserver keyserver.ubuntu.com \
+          --recv-keys 2388FF3BE10A76F638F80723FCAE110B1118213C \
+          2>/dev/null || true
+        gpg --export 2388FF3BE10A76F638F80723FCAE110B1118213C \
+          | tee /usr/share/keyrings/graphics-drivers-ppa.gpg > /dev/null
+        chmod 644 /usr/share/keyrings/graphics-drivers-ppa.gpg
+      become: true
+      ignore_errors: true
+
+    - name: Add graphics-drivers PPA repository (manual)
+      shell: |
+        echo "deb [signed-by=/usr/share/keyrings/graphics-drivers-ppa.gpg] \
+        https://ppa.launchpadcontent.net/graphics-drivers/ppa/ubuntu \
+        {{ ansible_distribution_release }} main" \
+          | tee /etc/apt/sources.list.d/graphics-drivers-ppa.list \
+          > /dev/null
+      become: true
+      ignore_errors: true
+
+    - name: Log repository setup complete
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "All repositories and GPG keys configured"
+        state: present
+      become: false
+
+    # -------------------------------------------------------
+    # SECTION 4: APT UPDATE AFTER ALL REPOS ARE SET
+    # -------------------------------------------------------
+    - name: Update apt cache after all repositories are added
+      apt:
+        update_cache: true
+      become: true
+
+    - name: Log apt cache update
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "APT cache updated with all new repositories"
+        state: present
+      become: false
+
+    # -------------------------------------------------------
+    # SECTION 5: GRAPHICS DRIVERS
+    # -------------------------------------------------------
+    - name: Log graphics start
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "========== GRAPHICS DRIVERS =========="
+        state: present
+      become: false
+
+    - name: Include graphics tasks
+      include_tasks: tasks/graphics.yml
+
+    - name: Log graphics complete
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "Graphics drivers installation completed"
+        state: present
+      become: false
+
+    # -------------------------------------------------------
+    # SECTION 6: SYSTEM UTILITIES
+    # -------------------------------------------------------
+    - name: Log system utilities start
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "========== SYSTEM UTILITIES =========="
+        state: present
+      become: false
+
+    - name: Install basic utilities
+      apt:
+        name:
+          - zip
+          - gzip
+          - tar
+          - nano
+          - htop
+          - vim
+          - curl
+          - wget
+          - git
+          - gnupg
+          - ca-certificates
+          - apt-transport-https
+          - software-properties-common
+        state: present
+      become: true
+      ignore_errors: true
+
+    - name: Install virtualization tools
+      apt:
+        name:
+          - virt-manager
+          - libvirt-daemon-system
+          - qemu-system-x86
+          - bridge-utils
+        state: present
+      become: true
+      ignore_errors: true
+
+    - name: Log system utilities complete
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "System utilities installed"
+        state: present
+      become: false
+
+    # -------------------------------------------------------
+    # SECTION 7: PROGRAMMING TOOLS
+    # -------------------------------------------------------
+    - name: Log programming start
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "========== PROGRAMMING TOOLS =========="
+        state: present
+      become: false
+
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+      become: true
+      ignore_errors: true
+
+    - name: Install VS Code
+      apt:
+        name: code
+        state: present
+      become: true
+      ignore_errors: true
+
+    - name: Log programming complete
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "Programming tools installation attempted"
+        state: present
+      become: false
+
+    # -------------------------------------------------------
+    # SECTION 8: PRODUCTIVITY APPS
+    # -------------------------------------------------------
+    - name: Log productivity start
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "========== PRODUCTIVITY APPS =========="
+        state: present
+      become: false
+
+    - name: Install Google Chrome
+      apt:
+        name: google-chrome-stable
+        state: present
+      become: true
+      ignore_errors: true
+
+    - name: Find latest Zotero download URL
+      shell: >
+        curl -sI
+        "https://www.zotero.org/download/client/dl?channel=release&platform=linux-x86_64"
+        | grep -i "^location:"
+        | awk '{print $2}'
+        | tr -d '\r\n'
+      register: zotero_url
+      changed_when: false
+      ignore_errors: true
+
+    - name: Set Zotero fallback URL
+      set_fact:
+        zotero_download_url: >-
+          {{ zotero_url.stdout
+          if (zotero_url.stdout is defined and zotero_url.stdout | length > 0)
+          else 'https://download.zotero.org/client/release/7.0.12/Zotero-7.0.12_linux-x86_64.tar.bz2'
+          }}
+
+    - name: Download Zotero tarball
+      get_url:
+        url: "{{ zotero_download_url }}"
+        dest: /tmp/Zotero_linux.tar.bz2
+        timeout: 120
+        force: true
+      become: true
+      ignore_errors: true
+      register: zotero_dl
+
+    - name: Create Zotero install directory
+      file:
+        path: /opt/Zotero
+        state: directory
+        mode: '0755'
+      become: true
+
+    - name: Extract Zotero
+      shell: |
+        tar -xjf /tmp/Zotero_linux.tar.bz2 \
+          -C /opt/Zotero --strip-components=1
+      become: true
+      when: zotero_dl is not failed
+      ignore_errors: true
+      register: zotero_extract
+
+    - name: Create Zotero symlink in PATH
+      file:
+        src: /opt/Zotero/zotero
+        dest: /usr/local/bin/zotero
+        state: link
+        force: true
+      become: true
+      when: zotero_extract is not failed
+      ignore_errors: true
+
+    - name: Install Zotero desktop entry
+      shell: |
+        if [ -f /opt/Zotero/set_launcher_icon ]; then
+          /opt/Zotero/set_launcher_icon
+        fi
+        if [ -f /opt/Zotero/Zotero.desktop ]; then
+          cp /opt/Zotero/Zotero.desktop \
+            /usr/share/applications/zotero.desktop
+        fi
+      become: true
+      ignore_errors: true
+
+    - name: Log productivity complete
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "Productivity apps installation attempted"
+        state: present
+      become: false
+
+    # -------------------------------------------------------
+    # SECTION 9: MEDIA APPLICATIONS
+    # -------------------------------------------------------
+    - name: Log media start
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "========== MEDIA APPLICATIONS =========="
+        state: present
+      become: false
+
+    - name: Install media packages
+      apt:
+        name:
+          - obs-studio
+          - vlc
+          - ffmpeg
+        state: present
+      become: true
+      ignore_errors: true
+
+    - name: Download Discord .deb
+      get_url:
+        url: "https://discord.com/api/download?platform=linux&format=deb"
+        dest: /tmp/discord.deb
+        timeout: 60
+        force: true
+      ignore_errors: true
+      register: discord_dl
+
+    - name: Install Discord from .deb
+      apt:
+        deb: /tmp/discord.deb
+      become: true
+      when: discord_dl is not failed
+      ignore_errors: true
+
+    - name: Install Spotify
+      apt:
+        name: spotify-client
+        state: present
+      become: true
+      ignore_errors: true
+
+    - name: Log media complete
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "Media applications installation attempted"
+        state: present
+      become: false
+
+  post_tasks:
+    # -------------------------------------------------------
+    # SECTION 10: CLEANUP AND VERIFICATION
+    # -------------------------------------------------------
+    - name: Clean apt package cache
+      apt:
+        autoclean: true
+        autoremove: true
+      become: true
+      ignore_errors: true
+
+    - name: Update desktop database
+      shell: |
+        update-desktop-database /usr/share/applications/ \
+          2>/dev/null || true
+        update-mime-database /usr/share/mime/ \
+          2>/dev/null || true
+        gtk-update-icon-cache /usr/share/icons/hicolor/ \
+          2>/dev/null || true
+      become: true
+      ignore_errors: true
+
+    - name: Refresh KDE application cache
+      shell: >
+        sudo -u {{ ansible_env.USER }}
+        kbuildsycoca5 --noincremental 2>/dev/null || true
+      become: true
+      ignore_errors: true
+
+    - name: Verify installed applications
+      shell: |
+        echo "=== Application Verification ==="
+        echo "VS Code : $(which code 2>/dev/null || echo NOT FOUND)"
+        echo "Zotero  : $(which zotero 2>/dev/null || echo NOT FOUND)"
+        echo "Spotify : $(which spotify 2>/dev/null || echo NOT FOUND)"
+        echo "Discord : $(which discord 2>/dev/null || echo NOT FOUND)"
+        echo "OBS     : $(which obs 2>/dev/null || echo NOT FOUND)"
+        echo "Chrome  : \
+        $(which google-chrome-stable 2>/dev/null || echo NOT FOUND)"
+        echo "Node.js : $(node --version 2>/dev/null || echo NOT FOUND)"
+        echo "NVIDIA  : \
+        $(nvidia-smi 2>/dev/null | head -1 || echo NOT FOUND - reboot)"
+      register: app_verification
+      changed_when: false
+      ignore_errors: true
+
+    - name: Log verification results
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ app_verification.stdout }}"
+        state: present
+      become: false
+
+    - name: Log completion timestamp
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "SETUP COMPLETED - {{ ansible_date_time.iso8601 }}"
+        state: present
+      become: false
+
+    - name: Display verification summary
+      debug:
+        msg: "{{ app_verification.stdout_lines }}"
+
+    - name: Display completion message
+      debug:
+        msg:
+          - "========================================"
+          - "Installation Complete!"
+          - "Log saved to: {{ log_file }}"
+          - "IMPORTANT: Please reboot to activate"
+          - "NVIDIA drivers and refresh KDE menus."
+          - "========================================"

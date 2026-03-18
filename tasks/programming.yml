@@ -1,0 +1,192 @@
+---
+- name: Programming and Development Tools
+  block:
+    - name: Check for Git
+      command: which git
+      register: git_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Git
+      apt:
+        name: git
+        state: present
+      register: git_install
+      when: git_check.rc != 0
+
+    - name: Log Git installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ Git version control - Status: {{ 'Installed' if git_install.changed else 'Already installed' }}"
+        state: present
+      become: no
+
+    - name: Check for Node.js
+      command: which node
+      register: node_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Node.js and npm
+      block:
+        - name: Add NodeSource repository key
+          apt_key:
+            url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+            state: present
+          ignore_errors: yes
+
+        - name: Add NodeSource repository
+          apt_repository:
+            repo: "deb https://deb.nodesource.com/node_18.x {{ ansible_distribution_release }} main"
+            state: present
+          ignore_errors: yes
+
+        - name: Install Node.js
+          apt:
+            name: nodejs
+            state: present
+            update_cache: yes
+          register: nodejs_install
+          when: node_check.rc != 0
+
+        - name: Log Node.js installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Node.js 18.x and npm - Status: {{ 'Installed' if nodejs_install.changed else 'Already installed' }}"
+            state: present
+          become: no
+
+    - name: Check for VS Code
+      command: which code
+      register: vscode_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install VS Code
+      block:
+        - name: Add Microsoft GPG key
+          apt_key:
+            url: https://packages.microsoft.com/keys/microsoft.asc
+            state: present
+          ignore_errors: yes
+
+        - name: Add VS Code repository
+          apt_repository:
+            repo: "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-archive-keyring.gpg] https://packages.microsoft.com/repos/code stable main"
+            state: present
+          ignore_errors: yes
+
+        - name: Install VS Code
+          apt:
+            name: code
+            state: present
+            update_cache: yes
+          register: vscode_install
+          when: vscode_check.rc != 0
+          ignore_errors: yes
+
+        - name: Log VS Code installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Visual Studio Code - Status: {{ 'Installed' if vscode_install.changed else 'Already installed' }}"
+            state: present
+          become: no
+
+    - name: Check for Antigravity
+      command: which antigravity
+      register: antigravity_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Antigravity Desktop Launcher
+      block:
+        - name: Install Antigravity dependencies
+          apt:
+            name:
+              - python3
+              - python3-pyqt5
+              - python3-pip
+            state: present
+          register: antigravity_deps
+
+        - name: Clone Antigravity repository
+          git:
+            repo: https://github.com/Macer1123/Antigravity.git
+            dest: /opt/antigravity
+            version: main
+          when: antigravity_check.rc != 0
+          ignore_errors: yes
+
+        - name: Install Antigravity Python dependencies
+          pip:
+            name:
+              - PyQt5
+              - pynput
+            executable: pip3
+          ignore_errors: yes
+          register: antigravity_pip
+
+        - name: Make Antigravity executable
+          file:
+            path: /opt/antigravity/antigravity.py
+            mode: '0755'
+          ignore_errors: yes
+
+        - name: Create Antigravity symlink
+          file:
+            src: /opt/antigravity/antigravity.py
+            dest: /usr/local/bin/antigravity
+            state: link
+            force: yes
+          ignore_errors: yes
+
+        - name: Log Antigravity installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Antigravity desktop launcher - Status: Installed"
+            state: present
+          become: no
+
+    - name: Check for development utilities
+      block:
+        - name: Check curl
+          command: which curl
+          register: curl_check
+          ignore_errors: yes
+          changed_when: false
+
+        - name: Check wget
+          command: which wget
+          register: wget_check
+          ignore_errors: yes
+          changed_when: false
+
+        - name: Check vim
+          command: which vim
+          register: vim_check
+          ignore_errors: yes
+          changed_when: false
+
+    - name: Install additional development tools
+      apt:
+        name:
+          - curl
+          - wget
+          - vim
+        state: present
+      register: dev_tools_install
+
+    - name: Log development tools installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ Development tools (curl, wget, vim) - Status: {{ dev_tools_install.changed | ternary('Installed', 'Already installed') }}"
+        state: present
+      become: no
+
+  rescue:
+    - name: Log programming tools error
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✗ Error during programming tools installation - continuing with next section"
+        state: present
+      become: no

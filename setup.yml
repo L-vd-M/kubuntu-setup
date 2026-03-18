@@ -1,0 +1,127 @@
+---
+- name: Kubuntu PC Setup Playbook
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  vars:
+    # ============================================
+    # LOGGING CONFIGURATION
+    # ============================================
+    log_dir: "{{ ansible_env.HOME }}/Documents/Ansible_Installation_Log"
+    log_file: "{{ log_dir }}/kubuntu_setup_{{ ansible_date_time.iso8601_basic_short }}.log"
+
+  # ============================================
+  # PRE-TASKS: LOGGING SETUP
+  # ============================================
+  pre_tasks:
+    - name: Ensure log directory exists
+      file:
+        path: "{{ log_dir }}"
+        state: directory
+        mode: '0755'
+      become: false
+
+    - name: Initialize log file
+      copy:
+        content: |
+          ========================================
+          Kubuntu Setup Playbook Execution Log
+          ========================================
+          Started   : {{ ansible_date_time.iso8601 }}
+          Hostname  : {{ ansible_hostname }}
+          OS        : {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Release   : {{ ansible_distribution_release }}
+          Arch      : {{ ansible_architecture }}
+          Kernel    : {{ ansible_kernel }}
+          ========================================
+        dest: "{{ log_file }}"
+        mode: '0644'
+      become: false
+
+    - name: Log system information
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "Python Version  : {{ ansible_python_version }}"
+        - "Ansible Version : {{ ansible_version.full }}"
+        - "Total Memory    : {{ ansible_memtotal_mb }} MB"
+        - "CPU Cores       : {{ ansible_processor_vcpus }}"
+        - "Default IPv4    : {{ ansible_default_ipv4.address | default('N/A') }}"
+      become: false
+
+  # ============================================
+  # MAIN TASKS (delegated to task files)
+  # ============================================
+  tasks:
+
+    # ------------------------------------------
+    # SECTION 1: CHECK PREREQUISITES
+    # ------------------------------------------
+    - name: "[PREREQ] Run prerequisite checks"
+      include_tasks: tasks/check_prerequisites.yml
+
+    # ------------------------------------------
+    # SECTION 2: GRAPHICS DRIVER SETUP
+    # ------------------------------------------
+    - name: "[GPU] Install graphics drivers"
+      include_tasks: tasks/graphics.yml
+
+    # ------------------------------------------
+    # SECTION 3: SYSTEM UTILITIES
+    # ------------------------------------------
+    - name: "[SYS] Install system and utility packages"
+      include_tasks: tasks/system.yml
+
+    # ------------------------------------------
+    # SECTION 4: PROGRAMMING TOOLS
+    # ------------------------------------------
+    - name: "[DEV] Install programming and development tools"
+      include_tasks: tasks/programming.yml
+
+    # ------------------------------------------
+    # SECTION 5: MEDIA & COMMUNICATION
+    # ------------------------------------------
+    - name: "[MEDIA] Install media and communication apps"
+      include_tasks: tasks/media.yml
+
+    # ------------------------------------------
+    # SECTION 6: PRODUCTIVITY & OFFICE
+    # ------------------------------------------
+    - name: "[PROD] Install productivity and office apps"
+      include_tasks: tasks/productivity.yml
+
+  # ============================================
+  # POST-TASKS: FINALIZE LOGGING
+  # ============================================
+  post_tasks:
+    - name: "[POST] Log installed APT packages list"
+      shell: dpkg --get-selections | grep -v deinstall
+      register: installed_packages
+      become: false
+      changed_when: false
+
+    - name: "[POST] Write installed packages to log"
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ item }}"
+        state: present
+      loop: "{{ installed_packages.stdout_lines }}"
+      become: false
+
+    - name: "[POST] Finalize log with completion timestamp"
+      lineinfile:
+        path: "{{ log_file }}"
+        line: |
+          ========================================
+          KUBUNTU SETUP COMPLETED SUCCESSFULLY
+          Finished : {{ ansible_date_time.iso8601 }}
+          ========================================
+        state: present
+      become: false
+
+    - name: "[POST] Display log file location"
+      debug:
+        msg: "Setup complete! Full log available at: {{ log_file }}"

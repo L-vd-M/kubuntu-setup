@@ -49,49 +49,32 @@
           when: obsidian_download.changed
 
     - name: Check for Zotero
-      command: ls /opt/Zotero_linux-x86_64/zotero
+      command: which zotero
       register: zotero_check
       ignore_errors: yes
       changed_when: false
 
-    - name: Install Zotero
+    - name: Install Zotero via APT repository
       block:
-        - name: Download Zotero
-          get_url:
-            url: "https://www.zotero.org/download/client/dl?channel=release&platform=linux-x86_64"
-            dest: /tmp/Zotero.tar.bz2
-            timeout: 60
-          ignore_errors: yes
-          register: zotero_download
+        - name: Add Zotero APT repository (zotero-deb)
+          shell: curl -sL https://raw.githubusercontent.com/retorquere/zotero-deb/master/install.sh | sudo bash
+          args:
+            creates: /etc/apt/sources.list.d/zotero.list
 
-        - name: Extract Zotero
-          shell: |
-            cd /opt
-            tar -xjf /tmp/Zotero.tar.bz2
-          when: zotero_download.changed
-          ignore_errors: yes
-
-        - name: Create Zotero symlink
-          file:
-            src: /opt/Zotero_linux-x86_64/zotero
-            dest: /usr/local/bin/zotero
-            state: link
-            force: yes
-          ignore_errors: yes
-
-        - name: Clean up installer
-          file:
-            path: /tmp/Zotero.tar.bz2
-            state: absent
-          ignore_errors: yes
+        - name: Install Zotero
+          apt:
+            name: zotero
+            state: present
+            update_cache: yes
+          register: zotero_install
+          when: zotero_check.rc != 0
 
         - name: Log Zotero installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Zotero citation manager - Status: Installed"
+            line: "✓ Zotero citation manager - Status: {{ 'Installed' if zotero_install.changed | default(false) else 'Already installed' }}"
             state: present
           become: no
-          when: zotero_download.changed
 
     - name: Check for Google Chrome
       command: which google-chrome

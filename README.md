@@ -2,7 +2,7 @@
 
 > A comprehensive, modular Ansible playbook for automated setup and software installation on Kubuntu systems with intelligent graphics driver detection, prerequisite verification, and detailed logging.
 
-**Version**: 2.1  
+**Version**: 2.2  
 **Last Updated**: March 2026  
 **Compatible With**: Kubuntu 22.04 LTS and later  
 **Maintained By**: Lourens van der Merwe  
@@ -37,7 +37,8 @@
 
 This Ansible playbook automates the complete setup of a Kubuntu system by installing and configuring a curated selection of modern, productive software. Instead of manually installing each application, simply run the playbook and let it handle everything.
 
-**NEW IN v2.1**: 
+**NEW IN v2.2**: 
+- ✅ Zotero now installs via APT repository (`zotero-deb`) for automatic updates
 - ✅ Comprehensive prerequisite checking before installation
 - ✅ Detailed logging to `~/Documents/Ansible_Installation_Log/`
 - ✅ Intelligent graphics card detection and automatic driver installation
@@ -92,7 +93,7 @@ The playbook is organized into **modular task files** by category, making it eas
 
 ### 📊 Productivity & Office
 - **Note-Taking**: Obsidian (markdown-based PKM)
-- **Citation Manager**: Zotero (research reference management)
+- **Citation Manager**: Zotero (via APT repo — auto-updating)
 - **Browser**: Google Chrome
 - **Microsoft Office**: Excel, Outlook (via WinApps)
 

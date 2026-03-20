@@ -32,7 +32,7 @@
     - name: Log compression utilities installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Compression utilities installed (zip, gzip, tar) - Status: {{ compression_install.changed | ternary('Installed', 'Already installed') }}"
+        line: "✓ Compression utilities installed (zip, gzip, tar) - Status: {{ compression_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
         state: present
       become: no
 
@@ -52,7 +52,7 @@
     - name: Log nano installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Nano text editor - Status: {{ 'Installed' if nano_install.changed else 'Already installed' }}"
+        line: "✓ Nano text editor - Status: {{ 'Installed' if nano_install.changed | default(false) else 'Already installed' }}"
         state: present
       become: no
 
@@ -79,7 +79,7 @@
     - name: Log htop installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Htop system monitor - Status: {{ htop_install.changed | ternary('Installed', 'Already installed') }}"
+        line: "✓ Htop system monitor - Status: {{ htop_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
         state: present
       become: no
 
@@ -100,7 +100,7 @@
         - name: Log gtop installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Gtop system monitor - Status: {{ gtop_install.changed | ternary('Installed', 'Skipped (npm not available)') }}"
+            line: "✓ Gtop system monitor - Status: {{ gtop_install.changed | default(false) | ternary('Installed', 'Skipped (npm not available)') }}"
             state: present
           become: no
 
@@ -112,15 +112,17 @@
 
     - name: Install Oracle VirtualBox
       block:
-        - name: Add VirtualBox repository key
-          apt_key:
+        - name: Download VirtualBox repository keyring
+          get_url:
             url: https://www.virtualbox.org/download/oracle_vbox_2016.asc
-            state: present
+            dest: /etc/apt/keyrings/oracle_vbox_2016.asc
+            mode: '0644'
+            force: yes
           ignore_errors: yes
 
         - name: Add VirtualBox repository
           apt_repository:
-            repo: "deb [arch={{ dpkg_arch }}] https://download.virtualbox.org/virtualbox/debian {{ ansible_distribution_release }} contrib"
+            repo: "deb [arch={{ dpkg_arch }} signed-by=/etc/apt/keyrings/oracle_vbox_2016.asc] https://download.virtualbox.org/virtualbox/debian {{ ansible_distribution_release }} contrib"
             state: present
           ignore_errors: yes
 
@@ -135,7 +137,7 @@
         - name: Log VirtualBox installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Oracle VirtualBox 7.0 - Status: {{ virtualbox_install.changed | ternary('Installed', 'Already installed') }}"
+            line: "✓ Oracle VirtualBox 7.0 - Status: {{ virtualbox_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
             state: present
           become: no
 
@@ -167,7 +169,7 @@
         - name: Log Virt-Manager installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Virt-Manager (KVM/QEMU) - Status: {{ virt_manager_install.changed | ternary('Installed', 'Already installed') }}"
+            line: "✓ Virt-Manager (KVM/QEMU) - Status: {{ virt_manager_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
             state: present
           become: no
 
@@ -189,7 +191,7 @@
     - name: Log build essentials installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Build essentials and Linux headers - Status: {{ 'Installed' if build_essential_install.changed else 'Already installed' }}"
+        line: "✓ Build essentials and Linux headers - Status: {{ 'Installed' if build_essential_install.changed | default(false) else 'Already installed' }}"
         state: present
       become: no
 

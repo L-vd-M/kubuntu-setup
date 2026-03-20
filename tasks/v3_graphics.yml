@@ -100,7 +100,7 @@
         - name: Log NVIDIA driver installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ NVIDIA drivers installed successfully (Status: {{ nvidia_install.changed | ternary('Changed', 'Already installed') }})"
+            line: "✓ NVIDIA drivers installed successfully (Status: {{ nvidia_install.changed | default(false) | ternary('Changed', 'Already installed') }})"
             state: present
           become: no
           when: has_nvidia
@@ -142,7 +142,7 @@
         - name: Log AMD driver installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ AMD drivers installed successfully (Status: {{ amd_install.changed | ternary('Changed', 'Already installed') }})"
+            line: "✓ AMD drivers installed successfully (Status: {{ amd_install.changed | default(false) | ternary('Changed', 'Already installed') }})"
             state: present
           become: no
           when: has_amd
@@ -176,7 +176,7 @@
         - name: Log Intel driver installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Intel drivers installed successfully (Status: {{ intel_install.changed | ternary('Changed', 'Already installed') }})"
+            line: "✓ Intel drivers installed successfully (Status: {{ intel_install.changed | default(false) | ternary('Changed', 'Already installed') }})"
             state: present
           become: no
           when: has_intel

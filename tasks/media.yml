@@ -22,7 +22,7 @@
           apt:
             deb: /tmp/discord.deb
             state: present
-          when: discord_download.changed
+          when: discord_download.changed | default(false)
           ignore_errors: yes
           register: discord_install
 
@@ -35,7 +35,7 @@
         - name: Log Discord installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Discord chat application - Status: {{ 'Installed' if discord_install.changed else 'Already installed' }}"
+            line: "✓ Discord chat application - Status: {{ 'Installed' if discord_install.changed | default(false) else 'Already installed' }}"
             state: present
           become: no
 
@@ -56,7 +56,7 @@
     - name: Log OBS Studio installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ OBS Studio screen recording - Status: {{ 'Installed' if obs_install.changed else 'Already installed' }}"
+        line: "✓ OBS Studio screen recording - Status: {{ 'Installed' if obs_install.changed | default(false) else 'Already installed' }}"
         state: present
       become: no
 
@@ -68,15 +68,17 @@
 
     - name: Install Spotify
       block:
-        - name: Add Spotify repository key
-          apt_key:
-            url: https://download.spotify.com/debian/pubkey_6224F9941A8AA6D1.gpg
-            state: present
+        - name: Download Spotify repository keyring
+          get_url:
+            url: https://download.spotify.com/debian/pubkey_5384CE82BA52C83A.gpg
+            dest: /etc/apt/keyrings/spotify.gpg
+            mode: '0644'
+            force: yes
           ignore_errors: yes
 
         - name: Add Spotify repository
           apt_repository:
-            repo: "deb http://repository.spotify.com stable non-free"
+            repo: "deb [signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free"
             state: present
           ignore_errors: yes
 
@@ -92,7 +94,7 @@
         - name: Log Spotify installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Spotify music streaming - Status: {{ 'Installed' if spotify_install.changed else 'Already installed' }}"
+            line: "✓ Spotify music streaming - Status: {{ 'Installed' if spotify_install.changed | default(false) else 'Already installed' }}"
             state: present
           become: no
 
@@ -122,7 +124,7 @@
     - name: Log media utilities installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Media utilities (VLC, FFmpeg) - Status: {{ media_utils_install.changed | ternary('Installed', 'Already installed') }}"
+        line: "✓ Media utilities (VLC, FFmpeg) - Status: {{ media_utils_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
         state: present
       become: no
 

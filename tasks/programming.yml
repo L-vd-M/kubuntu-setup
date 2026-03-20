@@ -17,7 +17,7 @@
     - name: Log Git installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Git version control - Status: {{ 'Installed' if git_install.changed else 'Already installed' }}"
+        line: "✓ Git version control - Status: {{ 'Installed' if git_install.changed | default(false) else 'Already installed' }}"
         state: present
       become: no
 
@@ -65,7 +65,7 @@
         - name: Log Node.js installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Node.js 22.x (via NVM) - Status: {{ 'Installed' if nvm_install.changed else 'Already installed' }}"
+            line: "✓ Node.js 22.x (via NVM) - Status: {{ 'Installed' if nvm_install.changed | default(false) else 'Already installed' }}"
             state: present
           become: no
 
@@ -101,7 +101,7 @@
         - name: Log VS Code installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Visual Studio Code - Status: {{ 'Installed' if vscode_install.changed else 'Already installed' }}"
+            line: "✓ Visual Studio Code - Status: {{ 'Installed' if vscode_install.changed | default(false) else 'Already installed' }}"
             state: present
           become: no
 
@@ -192,7 +192,7 @@
     - name: Log development tools installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Development tools (curl, wget, vim) - Status: {{ dev_tools_install.changed | ternary('Installed', 'Already installed') }}"
+        line: "✓ Development tools (curl, wget, vim) - Status: {{ dev_tools_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
         state: present
       become: no
 

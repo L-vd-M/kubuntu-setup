@@ -1,0 +1,48 @@
+---
+- name: Test Modern VS Code Repository Setup
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: Get dpkg architecture
+      command: dpkg --print-architecture
+      register: dpkg_arch_cmd
+      changed_when: false
+      check_mode: no
+      become: false
+
+    - name: Set dpkg architecture fact
+      set_fact:
+        dpkg_arch: "{{ dpkg_arch_cmd.stdout }}"
+
+    - name: Ensure keyrings directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download VS Code GPG key
+      ansible.builtin.get_url:
+        # Note: The raw HTML website URL 'packages.microsoft.com' was corrected to the actual raw ASCII key URL
+        url: https://packages.microsoft.com/keys/microsoft.asc
+        dest: /etc/apt/keyrings/microsoft.asc
+        mode: '0644'
+        force: yes
+
+    - name: Add VS Code repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ dpkg_arch }} signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/repos/code stable main"
+        state: present
+        filename: vscode
+
+    - name: Install or Test VS Code
+      ansible.builtin.apt:
+        name: code
+        state: present
+        update_cache: yes
+      register: vscode_install
+
+    - name: Debug Status
+      debug:
+        msg: "VS Code APT repository configured securely without apt_key! Status: {{ vscode_install.changed | ternary('Installed', 'Already present') }}"

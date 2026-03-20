@@ -1,0 +1,75 @@
+---
+- name: Test Modernizing APT Keyrings (VirtualBox, Chrome, Spotify)
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: Get dpkg architecture
+      command: dpkg --print-architecture
+      register: dpkg_arch_cmd
+      changed_when: false
+      check_mode: no
+      become: false
+
+    - name: Set dpkg architecture fact
+      set_fact:
+        dpkg_arch: "{{ dpkg_arch_cmd.stdout }}"
+
+    - name: Ensure keyrings directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    # VIRTUALBOX
+    - name: Download VirtualBox GPG key
+      ansible.builtin.get_url:
+        url: https://www.virtualbox.org/download/oracle_vbox_2016.asc
+        dest: /etc/apt/keyrings/oracle_vbox_2016.asc
+        mode: '0644'
+        force: yes
+
+    - name: Add VirtualBox repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ dpkg_arch }} signed-by=/etc/apt/keyrings/oracle_vbox_2016.asc] https://download.virtualbox.org/virtualbox/debian {{ ansible_distribution_release }} contrib"
+        state: present
+        filename: virtualbox
+
+    # GOOGLE CHROME
+    - name: Download Google Chrome GPG key
+      ansible.builtin.get_url:
+        url: https://dl-ssl.google.com/linux/linux_signing_key.pub
+        dest: /etc/apt/keyrings/google-chrome.asc
+        mode: '0644'
+        force: yes
+
+    - name: Add Google Chrome repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ dpkg_arch }} signed-by=/etc/apt/keyrings/google-chrome.asc] http://dl.google.com/linux/chrome/deb/ stable main"
+        state: present
+        filename: google-chrome
+
+    # SPOTIFY
+    - name: Download Spotify GPG key
+      ansible.builtin.get_url:
+        url: https://download.spotify.com/debian/pubkey_5384CE82BA52C83A.gpg
+        dest: /etc/apt/keyrings/spotify.gpg
+        mode: '0644'
+        force: yes
+
+    - name: Add Spotify repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free"
+        state: present
+        filename: spotify
+
+    # TEST APT UDPATE
+    - name: Run apt update to confirm all keychains parse successfully
+      ansible.builtin.apt:
+        update_cache: yes
+      register: apt_cache_update
+
+    - name: Debug Verify
+      debug:
+        msg: "✅ Keychains mapped securely. APT Cache updated successfully!"

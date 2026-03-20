@@ -112,28 +112,6 @@
     state: present
   become: false
 
-# Check if build-essential is installed
-- name: Check if build-essential is installed
-  shell: dpkg-query -W -f='${Status}' build-essential 2>/dev/null | grep -c "ok installed"
-  register: build_essential_check
-  failed_when: false
-  changed_when: false
-  become: true
-
-- name: Install build-essential if missing
-  apt:
-    name: build-essential
-    state: present
-  become: true
-  when: build_essential_check.stdout == "0"
-  ignore_errors: true
-
-- name: Log build-essential installation
-  lineinfile:
-    path: "{{ log_file }}"
-    line: "Build-essential installation attempted: {{ 'Installed' if build_essential_check.stdout == '1' else 'Already installed' }}"
-    state: present
-  become: false
 
 # Check if pciutils is installed
 - name: Check if pciutils is installed

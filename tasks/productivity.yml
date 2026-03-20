@@ -35,7 +35,7 @@
             chmod +x Obsidian-latest.AppImage
             ./Obsidian-latest.AppImage --appimage-extract
             mv squashfs-root /opt/obsidian
-          when: obsidian_download.changed
+          when: obsidian_download.changed | default(false)
           ignore_errors: yes
 
         - name: Create Obsidian symlink
@@ -58,7 +58,7 @@
             line: "✓ Obsidian note-taking app - Status: Installed"
             state: present
           become: no
-          when: obsidian_download.changed
+          when: obsidian_download.changed | default(false)
 
     - name: Check for Zotero
       command: which zotero
@@ -96,15 +96,17 @@
 
     - name: Install Google Chrome
       block:
-        - name: Add Chrome GPG key
-          apt_key:
+        - name: Download Chrome GPG key
+          get_url:
             url: https://dl-ssl.google.com/linux/linux_signing_key.pub
-            state: present
+            dest: /etc/apt/keyrings/google-chrome.asc
+            mode: '0644'
+            force: yes
           ignore_errors: yes
 
         - name: Add Chrome repository
           apt_repository:
-            repo: "deb [arch={{ dpkg_arch }}] http://dl.google.com/linux/chrome/deb/ stable main"
+            repo: "deb [arch={{ dpkg_arch }} signed-by=/etc/apt/keyrings/google-chrome.asc] http://dl.google.com/linux/chrome/deb/ stable main"
             state: present
           ignore_errors: yes
 
@@ -120,7 +122,7 @@
         - name: Log Chrome installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Google Chrome browser - Status: {{ 'Installed' if chrome_install.changed else 'Already installed' }}"
+            line: "✓ Google Chrome browser - Status: {{ 'Installed' if chrome_install.changed | default(false) else 'Already installed' }}"
             state: present
           become: no
 
@@ -148,14 +150,14 @@
 
         - name: Run WinApps installer
           shell: cd /opt/winapps && ./install.sh
-          when: winapps_clone.changed
+          when: winapps_clone.changed | default(false)
           ignore_errors: yes
           register: winapps_install
 
         - name: Log WinApps installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ WinApps - Status: {{ 'Installed' if winapps_install.changed else 'Already installed or requires manual setup' }}"
+            line: "✓ WinApps - Status: {{ 'Installed' if winapps_install.changed | default(false) else 'Already installed or requires manual setup' }}"
             state: present
           become: no
 

@@ -136,7 +136,7 @@ sudo apt update && sudo apt upgrade -y && sudo apt install ansible && sudo apt i
 
 {
 Add this line at the end:
-YOUR_USERNAME ALL=(ALL) NOPASSWD: ALL
+- YOUR_USERNAME ALL=(ALL) NOPASSWD: ALL
 Save and exit (Ctrl+X, then Y, then Enter).
 }
 

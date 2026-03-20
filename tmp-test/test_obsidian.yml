@@ -1,0 +1,22 @@
+---
+- name: Test Obsidian Install
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  tasks:
+    - name: Get latest Obsidian release info
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest"
+        return_content: yes
+      register: obsidian_release
+
+    - name: Debug Obsidian URL
+      debug:
+        msg: "Found URL: {{ obsidian_release.json.assets | selectattr('name', 'search', 'AppImage') | rejectattr('name', 'search', 'arm64') | map(attribute='browser_download_url') | first }}"
+
+    - name: Download Obsidian AppImage
+      ansible.builtin.get_url:
+        url: "{{ obsidian_release.json.assets | selectattr('name', 'search', 'AppImage') | rejectattr('name', 'search', 'arm64') | map(attribute='browser_download_url') | first }}"
+        dest: /tmp/Obsidian_x86_64.AppImage
+        mode: '0755'
+        timeout: 60

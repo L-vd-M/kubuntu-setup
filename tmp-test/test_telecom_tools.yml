@@ -1,0 +1,50 @@
+---
+- name: Test Telecommunications & Academic Tools Setup
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: Preconfigure Wireshark to allow non-superusers to capture packets
+      debconf:
+        name: wireshark-common
+        question: wireshark-common/install-setuid
+        vtype: boolean
+        value: 'true'
+
+    - name: Install APT packages for telecom and academic tools
+      apt:
+        name:
+          - okular
+          - gnuradio
+          - wireshark
+          - jupyter-notebook
+          - texstudio
+          - pandoc
+        state: present
+        update_cache: yes
+      register: apt_tools_install
+
+    - name: Check if snapd is installed
+      command: which snap
+      register: snap_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Super Productivity (Snap)
+      command: snap install superproductivity
+      when: snap_check.rc == 0
+      register: superproductivity_install
+      changed_when: "'installed' in superproductivity_install.stdout"
+      ignore_errors: yes
+
+    - name: Install Draw.io (Snap)
+      command: snap install drawio
+      when: snap_check.rc == 0
+      register: drawio_install
+      changed_when: "'installed' in drawio_install.stdout"
+      ignore_errors: yes
+
+    - name: Final Output Check
+      debug:
+        msg: "APT Tools Status: {{ apt_tools_install.changed }}, Snap Draw.io: {{ drawio_install.changed | default('skipped') }}, Snap Super Productivity: {{ superproductivity_install.changed | default('skipped') }}"

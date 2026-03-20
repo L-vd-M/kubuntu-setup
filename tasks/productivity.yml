@@ -9,11 +9,23 @@
 
     - name: Install Obsidian
       block:
+        - name: Get latest Obsidian release info
+          ansible.builtin.uri:
+            url: "https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest"
+            return_content: yes
+          register: obsidian_release
+
         - name: Download Obsidian
-          get_url:
-            url: https://github.com/obsidianmd/obsidian-releases/releases/download/latest/Obsidian-latest.AppImage
+          ansible.builtin.get_url:
+            url: >-
+              {% if dpkg_arch == 'arm64' %}
+              {{ obsidian_release.json.assets | selectattr('name', 'search', 'AppImage') | selectattr('name', 'search', 'arm64') | map(attribute='browser_download_url') | first }}
+              {% else %}
+              {{ obsidian_release.json.assets | selectattr('name', 'search', 'AppImage') | rejectattr('name', 'search', 'arm64') | map(attribute='browser_download_url') | first }}
+              {% endif %}
             dest: /tmp/Obsidian-latest.AppImage
             mode: '0755'
+            timeout: 60
           ignore_errors: yes
           register: obsidian_download
 
@@ -92,7 +104,7 @@
 
         - name: Add Chrome repository
           apt_repository:
-            repo: "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main"
+            repo: "deb [arch={{ dpkg_arch }}] http://dl.google.com/linux/chrome/deb/ stable main"
             state: present
           ignore_errors: yes
 
@@ -153,6 +165,45 @@
             line: "  Note: For Excel, Outlook, and WhatsApp, run 'winapps install <app>' after setup"
             state: present
           become: no
+
+    - name: Install Academic Writing and Reading Suite (APT)
+      apt:
+        name:
+          - okular
+          - texstudio
+          - pandoc
+        state: present
+      register: apt_academic_install
+
+    - name: Log Academic Suite installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ Academic Suite (Okular, TeXstudio, Pandoc) - Status: {{ 'Installed' if apt_academic_install.changed | default(false) else 'Already installed' }}"
+        state: present
+      become: no
+
+    - name: Check for SNAP availability
+      command: which snap
+      register: snap_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Advanced Telecommunications Productivity Suite (Snap)
+      command: snap install {{ item }}
+      loop:
+        - superproductivity
+        - drawio
+      when: snap_check.rc == 0
+      register: snap_prod_install
+      changed_when: "'installed' in snap_prod_install.stdout"
+      ignore_errors: yes
+
+    - name: Log Snap Productivity Suite installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ Snap Productivity Suite (Draw.io, Super Productivity) - Status: Checked or Installed"
+        state: present
+      become: no
 
   rescue:
     - name: Log productivity tools error

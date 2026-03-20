@@ -21,38 +21,51 @@
         state: present
       become: no
 
-    - name: Check for Node.js
-      command: which node
-      register: node_check
+    - name: Check for NVM
+      shell: "ls {{ ansible_env.HOME }}/.nvm/nvm.sh"
+      register: nvm_check
       ignore_errors: yes
       changed_when: false
+      become: no
 
-    - name: Install Node.js and npm
+    - name: Install Node Version Manager (NVM) and Node.js
       block:
-        - name: Add NodeSource repository key
-          apt_key:
-            url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
-            state: present
-          ignore_errors: yes
-
-        - name: Add NodeSource repository
-          apt_repository:
-            repo: "deb https://deb.nodesource.com/node_18.x {{ ansible_distribution_release }} main"
-            state: present
-          ignore_errors: yes
-
-        - name: Install Node.js
+        - name: Ensure curl is installed for NVM script
           apt:
-            name: nodejs
+            name: curl
             state: present
-            update_cache: yes
-          register: nodejs_install
-          when: node_check.rc != 0
+          become: yes
+
+        - name: Download and install NVM
+          shell: "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash"
+          args:
+            creates: "{{ ansible_env.HOME }}/.nvm/nvm.sh"
+          become: no
+
+        - name: Install Node.js v22
+          shell: >
+            . {{ ansible_env.HOME }}/.nvm/nvm.sh &&
+            nvm install 22
+          args:
+            executable: /bin/bash
+          register: nvm_install
+          changed_when: "'is already installed' not in nvm_install.stdout"
+          become: no
+
+        - name: Set default Node version
+          shell: >
+            . {{ ansible_env.HOME }}/.nvm/nvm.sh &&
+            nvm alias default 22
+          args:
+            executable: /bin/bash
+          register: nvm_alias
+          changed_when: false
+          become: no
 
         - name: Log Node.js installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Node.js 18.x and npm - Status: {{ 'Installed' if nodejs_install.changed else 'Already installed' }}"
+            line: "✓ Node.js 22.x (via NVM) - Status: {{ 'Installed' if nvm_install.changed else 'Already installed' }}"
             state: present
           become: no
 
@@ -72,7 +85,7 @@
 
         - name: Add VS Code repository
           apt_repository:
-            repo: "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-archive-keyring.gpg] https://packages.microsoft.com/repos/code stable main"
+            repo: "deb [arch={{ dpkg_arch }} signed-by=/usr/share/keyrings/microsoft-archive-keyring.gpg] https://packages.microsoft.com/repos/code stable main"
             state: present
           ignore_errors: yes
 
@@ -180,6 +193,31 @@
       lineinfile:
         path: "{{ log_file }}"
         line: "✓ Development tools (curl, wget, vim) - Status: {{ dev_tools_install.changed | ternary('Installed', 'Already installed') }}"
+        state: present
+      become: no
+
+    - name: Preconfigure Wireshark to allow non-superusers to capture packets
+      debconf:
+        name: wireshark-common
+        question: wireshark-common/install-setuid
+        vtype: boolean
+        value: 'true'
+      become: yes
+
+    - name: Install Telecommunications Engineering Suite (APT)
+      apt:
+        name:
+          - gnuradio
+          - wireshark
+          - jupyter-notebook
+        state: present
+      register: telecom_engineering_install
+      become: yes
+
+    - name: Log Telecommunications Engineering Suite installation
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ Telecom Engineering Suite (GNU Radio, Wireshark, Jupyter) - Status: {{ 'Installed' if telecom_engineering_install.changed | default(false) else 'Already installed' }}"
         state: present
       become: no
 

@@ -1,0 +1,52 @@
+---
+- name: Test Architecture Dynamic Changes
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  tasks:
+    - name: Get dpkg architecture
+      command: dpkg --print-architecture
+      register: dpkg_arch_cmd
+      changed_when: false
+      check_mode: no
+      become: false
+
+    - name: Set dpkg architecture fact
+      set_fact:
+        dpkg_arch: "{{ dpkg_arch_cmd.stdout }}"
+
+    - name: Show OS defined architecture (Ansible built-in)
+      debug:
+        msg: "Ansible detected OS Architecture: {{ ansible_architecture }}"
+
+    - name: Show resolved dpkg architecture (Debian specific)
+      debug:
+        msg: "dpkg mapped Architecture (using newly added task): {{ dpkg_arch }}"
+
+    - name: TEST - Resolved VirtualBox APT Repository
+      debug:
+        msg: "VirtualBox Repo: deb [arch={{ dpkg_arch }}] https://download.virtualbox.org/virtualbox/debian {{ ansible_distribution_release }} contrib"
+
+    - name: TEST - Resolved Google Chrome APT Repository
+      debug:
+        msg: "Google Chrome Repo: deb [arch={{ dpkg_arch }}] http://dl.google.com/linux/chrome/deb/ stable main"
+
+    - name: TEST - Resolved VS Code APT Repository
+      debug:
+        msg: "VS Code Repo: deb [arch={{ dpkg_arch }} signed-by=/usr/share/keyrings/microsoft-archive-keyring.gpg] https://packages.microsoft.com/repos/code stable main"
+
+    - name: Get latest Obsidian release info
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest"
+        return_content: yes
+      register: obsidian_release
+
+    - name: TEST - Resolved Obsidian AppImage Download URL
+      debug:
+        msg: >-
+          Obsidian Download URL:
+          {% if dpkg_arch == 'arm64' %}
+          {{ obsidian_release.json.assets | selectattr('name', 'search', 'AppImage') | selectattr('name', 'search', 'arm64') | map(attribute='browser_download_url') | first }}
+          {% else %}
+          {{ obsidian_release.json.assets | selectattr('name', 'search', 'AppImage') | rejectattr('name', 'search', 'arm64') | map(attribute='browser_download_url') | first }}
+          {% endif %}

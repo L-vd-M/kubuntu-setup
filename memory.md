@@ -39,9 +39,10 @@
 
 ### 4. Programming Tools (`programming.yml`)
 - **Git** (also in prereqs)
-- **Node.js 18.x** + npm (via NodeSource repo)
+- **Node.js 22.x** + npm (via NVM)
 - **VS Code** (via Microsoft repo)
 - **Antigravity** desktop launcher (cloned from GitHub, with PyQt5 + pynput)
+- **Telecom Engineering Suite**: `gnuradio`, `wireshark` (with non-root capture configured), `jupyter-notebook`
 - **Dev utilities**: `curl`, `wget`, `vim`
 
 ### 5. Media & Communication (`media.yml`)
@@ -51,8 +52,10 @@
 - **VLC** + **FFmpeg** (from APT)
 
 ### 6. Productivity & Office (`productivity.yml`)
-- **Obsidian** (AppImage from GitHub releases)
-- **Zotero** (tarball from zotero.org)
+- **Obsidian** (AppImage dynamically pulled from GitHub releases via API)
+- **Zotero** (via `zotero-deb` APT repository)
+- **Academic Suite**: `okular`, `texstudio`, `pandoc` (via APT)
+- **Diagramming & Planning**: `drawio`, `superproductivity` (via Snap)
 - **Google Chrome** (via Google APT repo)
 - **WinApps** (cloned from GitHub, manual installer)
 
@@ -60,32 +63,22 @@
 
 ## Issues Found (What Needs To Be Changed)
 
-### 🔴 Critical — Will Fail
+### 🔴 Critical — Fixed
 
 #### 1. Obsidian download URL returns **404**
 - **File**: `tasks/productivity.yml` line 14
-- **URL**: `https://github.com/obsidianmd/obsidian-releases/releases/download/latest/Obsidian-latest.AppImage`
-- **Problem**: Obsidian does not host a `latest` tag with a generic AppImage name. Their releases use versioned URLs like `v1.x.x/Obsidian-1.x.x.AppImage`.
-- **Fix**: Use the GitHub API to fetch the latest release, or hardcode the current version and update periodically. Example using the API:
-  ```yaml
-  - name: Get latest Obsidian release URL
-    shell: >
-      curl -s https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest
-      | grep "browser_download_url.*AppImage"
-      | head -1 | cut -d '"' -f 4
-    register: obsidian_url
-  ```
+- **Problem**: Obsidian does not host a `latest` tag with a generic AppImage name.
+- **Fix Applied**: Updated task to query GitHub API dynamically and filter out `arm64` when running on `x86_64` (and vice versa) utilizing a `dpkg_arch` variable mapping.
 
 #### 2. Zotero archive format mismatch
 - **File**: `tasks/productivity.yml` lines 62, 68–70
-- **Problem**: The download saves as `Zotero.tar.bz2` and extracts with `tar -xjf`, but Zotero now ships as `.tar.xz` (the redirect points to `Zotero-8.0.4_linux-x86_64.tar.xz`).
-- **Fix**: Change the destination filename to `Zotero.tar.xz` and the extract command to `tar -xJf` (capital J for xz), or use `tar -xf` which auto-detects the format.
+- **Problem**: Format changed to `.tar.xz`.
+- **Fix Applied**: Completely replaced the tarball installation approach with the `zotero-deb` APT repository (by `retorquere`). 
 
-#### 3. NodeSource `node_18.x` repository returns **404**
+#### 3. Node.js Installation Strategy
 - **File**: `tasks/programming.yml` line 40
-- **URL**: `deb https://deb.nodesource.com/node_18.x {{ ansible_distribution_release }} main`
-- **Problem**: NodeSource has migrated to a new repository format. The old `node_18.x` paths no longer exist. Also, Node.js 18 is EOL as of April 2025.
-- **Fix**: Use NodeSource's new setup script (`https://deb.nodesource.com/setup_20.x`) or install Node.js 22 LTS via the new repo format. Alternatively, install via `snap install node --classic`.
+- **Problem**: NodeSource `node_18.x` repository returned 404. Furthermore, APT repos provide a global Node installation that can conflict with project needs.
+- **Fix Approach**: Shifted away from NodeSource completely. Proceeding with **NVM (Node Version Manager)** for per-user installation.
 
 ### 🟡 Moderate — May Cause Unexpected Behavior
 

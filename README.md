@@ -86,14 +86,17 @@ The playbook is organized into **modular task files** by category, making it eas
 
 ### 👨‍💻 Programming & Development
 - **Version Control**: Git
-- **Runtime**: Node.js 18.x and npm
+- **Runtime**: Node.js 22.x (managed via NVM)
 - **Code Editor**: Visual Studio Code
 - **Application Launcher**: Antigravity
+- **Telecom Engineering Suite**: GNU Radio (SDR / Signal Processing), Wireshark (Packet Analysis), Jupyter Notebooks (Data Modeling)
 - **Development Utilities**: curl, wget, vim
 
 ### 📊 Productivity & Office
 - **Note-Taking**: Obsidian (markdown-based PKM)
 - **Citation Manager**: Zotero (via APT repo — auto-updating)
+- **Academic Suite**: Okular (Advanced PDF Reading & Annotation), TeXstudio (LaTeX Editor), Pandoc (Markdown to PDF/Word converter)
+- **Diagramming & Planning**: Draw.io (Network Architectures), Super Productivity (Task Manager & Pomodoro Tracker)
 - **Browser**: Google Chrome
 - **Microsoft Office**: Excel, Outlook (via WinApps)
 

@@ -1,0 +1,53 @@
+---
+- name: Test NVM Installation
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars:
+    node_version: "22"
+    nvm_dir: "{{ ansible_env.HOME }}/.nvm"
+  # become is intentionally not true since NVM is a user-level install
+  tasks:
+    - name: Ensure curl is installed for NVM script
+      ansible.builtin.apt:
+        name: curl
+        state: present
+      become: yes
+
+    - name: Download and install NVM
+      shell: "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash"
+      args:
+        creates: "{{ nvm_dir }}/nvm.sh"
+
+    - name: Install Node.js v{{ node_version }}
+      shell: >
+        . {{ nvm_dir }}/nvm.sh && 
+        nvm install {{ node_version }}
+      args:
+        executable: /bin/bash
+      register: nvm_install
+      changed_when: "'is already installed' not in nvm_install.stdout"
+
+    - name: Set default Node version
+      shell: >
+        . {{ nvm_dir }}/nvm.sh && 
+        nvm alias default {{ node_version }}
+      args:
+        executable: /bin/bash
+      register: nvm_alias
+      changed_when: false
+
+    - name: Verify NVM and Node installation
+      shell: >
+        . {{ nvm_dir }}/nvm.sh && 
+        nvm current && 
+        node --version && 
+        npm --version
+      args:
+        executable: /bin/bash
+      register: node_verification
+      changed_when: false
+
+    - name: Debug Node Output
+      debug:
+        msg: "Verified NVM environment:\n{{ node_verification.stdout }}"

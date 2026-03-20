@@ -120,7 +120,7 @@
 
         - name: Add VirtualBox repository
           apt_repository:
-            repo: "deb [arch=amd64] https://download.virtualbox.org/virtualbox/debian {{ ansible_distribution_release }} contrib"
+            repo: "deb [arch={{ dpkg_arch }}] https://download.virtualbox.org/virtualbox/debian {{ ansible_distribution_release }} contrib"
             state: present
           ignore_errors: yes
 

@@ -34,7 +34,9 @@
 - **Compression**: `zip`, `gzip`, `tar`
 - **Editors**: `nano`
 - **Monitoring**: `htop`, `gtop` (via npm)
-- **Virtualization**: `virtualbox-7.0` (via Oracle repo), `virt-manager`, `libvirt-daemon-system`, `qemu-system-x86`, `bridge-utils`
+- **Virtualization Hypervisors**:
+  - **KVM / QEMU (Type 1 Bare-metal)**: `virt-manager`, `libvirt-daemon-system`, `qemu-system-x86`, `bridge-utils`
+  - **VirtualBox 7.0 (Type 2 Hosted)**: `virtualbox-7.0` (via Oracle APT repo)
 - **Build tools**: `build-essential`, `linux-headers-generic`
 
 ### 4. Programming Tools (`programming.yml`)

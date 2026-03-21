@@ -6,7 +6,7 @@
   become: yes
 
   vars:
-    host_user_home: "{{ host_user_home }}"
+    host_user_home: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) | regex_replace('^', '/home/') }}"
     # ============================================
     # LOGGING CONFIGURATION
     # ============================================

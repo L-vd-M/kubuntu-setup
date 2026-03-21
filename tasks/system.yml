@@ -109,7 +109,7 @@
         - name: Log gtop installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "{% if gtop_install.failed | default(false) %}✗ Gtop system monitor - Status: Failed{% else %}✓ Gtop system monitor - Status: {{ gtop_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
+            line: "{% if gtop_install.failed | default(false) %}✗ System monitor (gtop) - Status: Failed{% else %}✓ System monitor (gtop) - Status: {{ gtop_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
             state: present
           become: no
 

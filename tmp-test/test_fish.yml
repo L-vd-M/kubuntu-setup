@@ -1,0 +1,46 @@
+---
+- name: Test Fish Shell Installation
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    # Identify the user who is actually running the playbook (e.g., lourens)
+    # This ensures we don't accidentally change root's shell instead
+    target_user: "{{ lookup('env', 'USER') }}"
+
+  tasks:
+    - name: Add Fish PPA for the latest version (Optional but recommended)
+      apt_repository:
+        repo: ppa:fish-shell/release-3
+        state: present
+      become: yes
+
+    - name: Install Fish shell
+      apt:
+        name: fish
+        state: present
+        update_cache: yes
+      become: yes
+
+    - name: Ensure Fish is listed as a valid login shell
+      lineinfile:
+        path: /etc/shells
+        line: /usr/bin/fish
+        state: present
+      become: yes
+
+    - name: Change default shell to Fish for {{ target_user }}
+      user:
+        name: "{{ target_user }}"
+        shell: /usr/bin/fish
+      become: yes
+
+    - name: Verify shell change
+      shell: "getent passwd {{ target_user }} | cut -d: -f7"
+      register: shell_check
+      changed_when: false
+
+    - name: Display outcome
+      debug:
+        msg: "Success! The default shell for {{ target_user }} is now: {{ shell_check.stdout }}"

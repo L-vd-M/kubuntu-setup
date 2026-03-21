@@ -78,15 +78,18 @@
     - name: Install VS Code
       block:
         - name: Add Microsoft GPG key
-          apt_key:
+          get_url:
             url: https://packages.microsoft.com/keys/microsoft.asc
-            state: present
+            dest: /etc/apt/keyrings/microsoft.asc
+          when: vscode_check.rc != 0
           ignore_errors: yes
 
         - name: Add VS Code repository
           apt_repository:
-            repo: "deb [arch={{ dpkg_arch }} signed-by=/usr/share/keyrings/microsoft-archive-keyring.gpg] https://packages.microsoft.com/repos/code stable main"
+            repo: "deb [arch={{ dpkg_arch }} signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/repos/code stable main"
+            filename: vscode
             state: present
+          when: vscode_check.rc != 0
           ignore_errors: yes
 
         - name: Install VS Code

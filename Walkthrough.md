@@ -11,7 +11,7 @@ The `setup.yml` file is the central nervous system of your entire Ansible deploy
 1. **System Discovery**: It gathers critical hardware and OS facts natively (such as determining the amount of RAM, the number of CPU cores, and whether it is running on Kubuntu Noble or Jammy).
 2. **Architecture Mapping**: It dynamically queries the system's `dpkg` architecture (mapping `x86_64` to `amd64` or `aarch64` to `arm64`) to ensure third-party repositories always download the exact correct binaries.
 3. **Structured Logging**: It initializes a permanent, timestamped log file inside `~/Documents/Ansible_Installation_Log/` to track every success or failure.
-4. **Delegation**: It sequentially executes 6 dedicated modular task files to install software logically by category.
+4. **Delegation**: It sequentially executes 7 dedicated modular task files to install software logically by category.
 5. **Post-execution**: After all setups are complete, it dumps the full manifest of installed APT packages into the log file for precise auditing.
 
 ---
@@ -34,6 +34,7 @@ The `setup.yml` file is the central nervous system of your entire Ansible deploy
 **Purpose**: Installs the foundational OS layer tools and handles the heavy Virtualization suites.
 - Installs basic extraction tools (`zip`, `unzip`, `rar`, `p7zip`).
 - Injects Linux monitoring tools (`htop`, `neofetch`, `gtop`).
+- Installs the **Fish shell**, seamlessly making it the user's default login environment for a modern, interactive terminal, naturally injected via the official PPA.
 - Maps out your **Type 1 Hypervisor** via the Linux core: `virt-manager` (QEMU/KVM).
 - Downloads the external Oracle APT Keyrings to install the **Type 2 Hypervisor**: `virtualbox-7.0`.
 
@@ -53,8 +54,15 @@ The `setup.yml` file is the central nervous system of your entire Ansible deploy
 ### 6. `productivity.yml`
 **Purpose**: Builds your academic reading, writing, and diagramming command center.
 - Safely binds and sets up Google Chrome via `/etc/apt/keyrings`.
-- Downloads **Zotero** natively through community APT repositories so it auto-updates transparently.
+- Installs **Zotero** entirely dynamically. It leverages the GitHub API to poll available repository tags, parses the metadata cleanly, and pauses the execution with an interactive double-menu prompt so the user can natively select the exact major and minor version to install into the `/opt` environment.
 - Resolves **Obsidian's** dynamic versioning by fetching the JSON metadata of releases via the GitHub API to always install the latest AppImage natively. 
 - Adds the core **Academic Suite**: `okular` (advanced PDF annotation), `texstudio` (LaTeX compilation), and `pandoc` (Markdown parser).
 - Snaps in diagrams and Pomodoro timers via `drawio` and `superproductivity`.
 - Automatically prepares the dependencies required to handle **WinApps** (for Microsoft Outlook/Excel integration on Linux).
+
+### 7. `hibernation.yml`
+**Purpose**: Systematically handles the fragile transition of RAM-to-Drive suspending capabilities.
+- Safely calculates exact system RAM availability mapping and leverages `dd` to natively dynamically expand standard Ubuntu/Kubuntu swapfiles up to the exact required safe metrics per host.
+- Computes underlying filesystem block offsets via physical `filefrag` routing and root disk unique UUID tracking.
+- Safely re-initializes and binds both `/etc/default/grub` bootloader flags and the raw `initramfs` system resumption environment without manual user math.
+- Injects native Javascript Polkit authorizations, explicitly unmasking the native 'Hibernate' integration securely into the KDE Plasma / GNOME graphic user interfaces, and automatically binds a direct fast-lane `hibernate` CLI abbreviation alias cleanly into the active Fish shell configuration.

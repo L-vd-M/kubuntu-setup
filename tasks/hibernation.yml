@@ -4,188 +4,188 @@
     swap_file: "/swapfile"
     required_swap_mb: "{{ ansible_memtotal_mb + 2048 }}"
     required_swap_gb: "{{ ((ansible_memtotal_mb + 2048) | int / 1024) | round(0, 'ceil') | int }}"
-    - name: Ensure OS is Debian or Ubuntu based
-      fail:
-        msg: "This hibernation automation is explicitly designed for Debian/Ubuntu environments (Kubuntu, Ubuntu, Mint, Pop!_OS). It relies on `update-grub` and `initramfs-tools`. Other distributions like Fedora (Dracut) or Arch (mkinitcpio) handle kernel bootloaders differently."
-      when: ansible_os_family != "Debian"
+- name: Ensure OS is Debian or Ubuntu based
+  fail:
+    msg: "This hibernation automation is explicitly designed for Debian/Ubuntu environments (Kubuntu, Ubuntu, Mint, Pop!_OS). It relies on `update-grub` and `initramfs-tools`. Other distributions like Fedora (Dracut) or Arch (mkinitcpio) handle kernel bootloaders differently."
+  when: ansible_os_family != "Debian"
 
-    - name: Display current system parameters
-      debug:
-        msg: >-
-          Total RAM: {{ ansible_memtotal_mb }} MB.
-          Existing Swap Total: {{ ansible_swaptotal_mb }} MB.
-          Required Swap for Hibernation: {{ required_swap_mb }} MB (~{{ required_swap_gb }} GB).
+- name: Display current system parameters
+  debug:
+    msg: >-
+      Total RAM: {{ ansible_memtotal_mb }} MB.
+      Existing Swap Total: {{ ansible_swaptotal_mb }} MB.
+      Required Swap for Hibernation: {{ required_swap_mb }} MB (~{{ required_swap_gb }} GB).
 
-    - name: Prompt to resize swap
-      pause:
-        prompt: "\nYour current swap is too small for reliable hibernation.\nIt must be at least {{ required_swap_gb }} GB.\n\nDo you want to safely resize {{ swap_file }} to {{ required_swap_gb }}GB now? (y/N)"
-      register: resize_prompt
-      when: ansible_swaptotal_mb | int < required_swap_mb | int
+- name: Prompt to resize swap
+  pause:
+    prompt: "\nYour current swap is too small for reliable hibernation.\nIt must be at least {{ required_swap_gb }} GB.\n\nDo you want to safely resize {{ swap_file }} to {{ required_swap_gb }}GB now? (y/N)"
+  register: resize_prompt
+  when: ansible_swaptotal_mb | int < required_swap_mb | int
 
-    - name: Resize Swap Process
-      block:
-        - name: Disable current swap
-          command: swapoff -a
+- name: Resize Swap Process
+  block:
+    - name: Disable current swap
+      command: swapoff -a
 
-        - name: Create larger swapfile via dd (this takes up to a minute)
-          command: "dd if=/dev/zero of={{ swap_file }} bs=1G count={{ required_swap_gb }} status=progress"
-          register: dd_output
+    - name: Create larger swapfile via dd (this takes up to a minute)
+      command: "dd if=/dev/zero of={{ swap_file }} bs=1G count={{ required_swap_gb }} status=progress"
+      register: dd_output
 
-        - name: Set correct permissions on swapfile
-          file:
-            path: "{{ swap_file }}"
-            owner: root
-            group: root
-            mode: '0600'
+    - name: Set correct permissions on swapfile
+      file:
+        path: "{{ swap_file }}"
+        owner: root
+        group: root
+        mode: '0600'
 
-        - name: Make swap
-          command: mkswap {{ swap_file }}
+    - name: Make swap
+      command: mkswap {{ swap_file }}
 
-        - name: Enable new swap
-          command: swapon {{ swap_file }}
+    - name: Enable new swap
+      command: swapon {{ swap_file }}
 
-        - name: Add swap to fstab (if not already there)
-          mount:
-            path: none
-            src: "{{ swap_file }}"
-            fstype: swap
-            opts: sw
-            passno: 0
-            dump: 0
-            state: present
-      when: 
-        - ansible_swaptotal_mb | int < required_swap_mb | int
-        - (resize_prompt.user_input | default('N', true) | lower) == 'y'
+    - name: Add swap to fstab (if not already there)
+      mount:
+        path: none
+        src: "{{ swap_file }}"
+        fstype: swap
+        opts: sw
+        passno: 0
+        dump: 0
+        state: present
+  when: 
+    - ansible_swaptotal_mb | int < required_swap_mb | int
+    - (resize_prompt.user_input | default('N', true) | lower) == 'y'
 
-    # We must identify exactly which disk partition holds the swapfile
-    # so the kernel knows which disk to spin up to resume the state.
-    - name: Get partition UUID hosting the swapfile
-      command: "findmnt -no UUID -T {{ swap_file }}"
-      register: root_uuid_output
-      changed_when: false
+# We must identify exactly which disk partition holds the swapfile
+# so the kernel knows which disk to spin up to resume the state.
+- name: Get partition UUID hosting the swapfile
+  command: "findmnt -no UUID -T {{ swap_file }}"
+  register: root_uuid_output
+  changed_when: false
 
-    # We must find the physical block offset of the swapfile relative to the start
-    # of the partition. We parse the 'filefrag' output, pull the first block location
-    # (awk $1=="0:"), and sanitize it (tr -d '.') to get a clean number for GRUB.
-    - name: Get physical swapfile offset
-      shell: "filefrag -v {{ swap_file }} | awk '{ if($1==\"0:\"){print $4} }' | tr -d '.'"
-      register: swap_offset_output
-      changed_when: false
+# We must find the physical block offset of the swapfile relative to the start
+# of the partition. We parse the 'filefrag' output, pull the first block location
+# (awk $1=="0:"), and sanitize it (tr -d '.') to get a clean number for GRUB.
+- name: Get physical swapfile offset
+  shell: "filefrag -v {{ swap_file }} | awk '{ if($1==\"0:\"){print $4} }' | tr -d '.'"
+  register: swap_offset_output
+  changed_when: false
 
-    - name: Assign UUID and Offset facts
-      set_fact:
-        target_uuid: "{{ root_uuid_output.stdout | trim }}"
-        target_offset: "{{ swap_offset_output.stdout | trim }}"
+- name: Assign UUID and Offset facts
+  set_fact:
+    target_uuid: "{{ root_uuid_output.stdout | trim }}"
+    target_offset: "{{ swap_offset_output.stdout | trim }}"
 
-    - name: Display Hibernation Configuration
-      debug:
-        msg: >-
-          Identified UUID: {{ target_uuid }}
-          Identified Offset: {{ target_offset }}
-          These are the exact properties required for your kernel to resume from hibernation safely.
+- name: Display Hibernation Configuration
+  debug:
+    msg: >-
+      Identified UUID: {{ target_uuid }}
+      Identified Offset: {{ target_offset }}
+      These are the exact properties required for your kernel to resume from hibernation safely.
 
-    - name: Prompt to apply config
-      pause:
-        prompt: "\nDo you want to apply these variables to GRUB and Initramfs to permanently enable hibernation? (y/N)"
-      register: apply_prompt
+- name: Prompt to apply config
+  pause:
+    prompt: "\nDo you want to apply these variables to GRUB and Initramfs to permanently enable hibernation? (y/N)"
+  register: apply_prompt
 
-    - name: Apply Hibernation Changes
-      block:
-        - name: Configure initramfs resume parameter
-          copy:
-            dest: /etc/initramfs-tools/conf.d/resume
-            content: "RESUME=UUID={{ target_uuid }} resume_offset={{ target_offset }}\n"
-            owner: root
-            group: root
-            mode: '0644'
+- name: Apply Hibernation Changes
+  block:
+    - name: Configure initramfs resume parameter
+      copy:
+        dest: /etc/initramfs-tools/conf.d/resume
+        content: "RESUME=UUID={{ target_uuid }} resume_offset={{ target_offset }}\n"
+        owner: root
+        group: root
+        mode: '0644'
 
-        - name: Backup GRUB config
-          copy:
-            src: /etc/default/grub
-            dest: "/etc/default/grub.bak"
-            remote_src: yes
-            force: no
+    - name: Backup GRUB config
+      copy:
+        src: /etc/default/grub
+        dest: "/etc/default/grub.bak"
+        remote_src: yes
+        force: no
 
-        - name: Add resume params to GRUB_CMDLINE_LINUX_DEFAULT
-          # Uses backrefs to add the parameters exactly where they belong
-          lineinfile:
-            path: /etc/default/grub
-            regexp: '^GRUB_CMDLINE_LINUX_DEFAULT="(.*(?!resume=).*)"$'
-            line: 'GRUB_CMDLINE_LINUX_DEFAULT="\1 resume=UUID={{ target_uuid }} resume_offset={{ target_offset }}"'
-            backrefs: yes
+    - name: Add resume params to GRUB_CMDLINE_LINUX_DEFAULT
+      # Uses backrefs to add the parameters exactly where they belong
+      lineinfile:
+        path: /etc/default/grub
+        regexp: '^GRUB_CMDLINE_LINUX_DEFAULT="(.*(?!resume=).*)"$'
+        line: 'GRUB_CMDLINE_LINUX_DEFAULT="\1 resume=UUID={{ target_uuid }} resume_offset={{ target_offset }}"'
+        backrefs: yes
 
-        - name: Ensure legacy polkit localauthority directory exists
-          file:
-            path: /etc/polkit-1/localauthority/50-local.d
-            state: directory
-            mode: '0755'
+    - name: Ensure legacy polkit localauthority directory exists
+      file:
+        path: /etc/polkit-1/localauthority/50-local.d
+        state: directory
+        mode: '0755'
 
-        - name: Enable UI Hibernation Support locally for KDE / GNOME (Legacy PKLA)
-          copy:
-            dest: /etc/polkit-1/localauthority/50-local.d/com.ubuntu.enable-hibernate.pkla
-            content: |
-              [Re-enable hibernate by default in upower]
-              Identity=unix-user:*
-              Action=org.freedesktop.upower.hibernate
-              ResultActive=yes
-              
-              [Re-enable hibernate by default in logind]
-              Identity=unix-user:*
-              Action=org.freedesktop.login1.hibernate;org.freedesktop.login1.handle-hibernate-key;org.freedesktop.login1;org.freedesktop.login1.hibernate-multiple-sessions;org.freedesktop.login1.hibernate-ignore-inhibit
-              ResultActive=yes
-            owner: root
-            group: root
-            mode: '0644'
-
-        - name: Ensure modern polkit rules directory exists
-          file:
-            path: /etc/polkit-1/rules.d
-            state: directory
-            mode: '0755'
-
-        - name: Enable UI Hibernation Support (Modern JavaScript Rules)
-          copy:
-            dest: /etc/polkit-1/rules.d/10-enable-hibernate.rules
-            content: |
-              polkit.addRule(function(action, subject) {
-                  if (action.id == "org.freedesktop.login1.hibernate" ||
-                      action.id == "org.freedesktop.login1.hibernate-multiple-sessions" ||
-                      action.id == "org.freedesktop.upower.hibernate" ||
-                      action.id == "org.freedesktop.login1.handle-hibernate-key" ||
-                      action.id == "org.freedesktop.login1.hibernate-ignore-inhibit") {
-                      return polkit.Result.YES;
-                  }
-              });
-            owner: root
-            group: root
-            mode: '0644'
-
-        - name: Ensure system-wide fish functions directory exists
-          file:
-            path: /etc/fish/functions
-            state: directory
-            mode: '0755'
-
-        - name: Create system-wide 'hibernate' alias for Fish shell
-          copy:
-            dest: /etc/fish/functions/hibernate.fish
-            content: |
-              function hibernate --description 'Instantly hibernate the system'
-                  systemctl hibernate
-              end
-              
-              function hibrenate --description 'Instantly hibernate the system (typo catch)'
-                  systemctl hibernate
-              end
-            owner: root
-            group: root
-            mode: '0644'
-
-        - name: Update initramfs image
-          command: update-initramfs -u
+    - name: Enable UI Hibernation Support locally for KDE / GNOME (Legacy PKLA)
+      copy:
+        dest: /etc/polkit-1/localauthority/50-local.d/com.ubuntu.enable-hibernate.pkla
+        content: |
+          [Re-enable hibernate by default in upower]
+          Identity=unix-user:*
+          Action=org.freedesktop.upower.hibernate
+          ResultActive=yes
           
-        - name: Update GRUB
-          command: update-grub
+          [Re-enable hibernate by default in logind]
+          Identity=unix-user:*
+          Action=org.freedesktop.login1.hibernate;org.freedesktop.login1.handle-hibernate-key;org.freedesktop.login1;org.freedesktop.login1.hibernate-multiple-sessions;org.freedesktop.login1.hibernate-ignore-inhibit
+          ResultActive=yes
+        owner: root
+        group: root
+        mode: '0644'
 
-      when: (apply_prompt.user_input | default('n', true) | lower) == 'y'
+    - name: Ensure modern polkit rules directory exists
+      file:
+        path: /etc/polkit-1/rules.d
+        state: directory
+        mode: '0755'
+
+    - name: Enable UI Hibernation Support (Modern JavaScript Rules)
+      copy:
+        dest: /etc/polkit-1/rules.d/10-enable-hibernate.rules
+        content: |
+          polkit.addRule(function(action, subject) {
+              if (action.id == "org.freedesktop.login1.hibernate" ||
+                  action.id == "org.freedesktop.login1.hibernate-multiple-sessions" ||
+                  action.id == "org.freedesktop.upower.hibernate" ||
+                  action.id == "org.freedesktop.login1.handle-hibernate-key" ||
+                  action.id == "org.freedesktop.login1.hibernate-ignore-inhibit") {
+                  return polkit.Result.YES;
+              }
+          });
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Ensure system-wide fish functions directory exists
+      file:
+        path: /etc/fish/functions
+        state: directory
+        mode: '0755'
+
+    - name: Create system-wide 'hibernate' alias for Fish shell
+      copy:
+        dest: /etc/fish/functions/hibernate.fish
+        content: |
+          function hibernate --description 'Instantly hibernate the system'
+              systemctl hibernate
+          end
+          
+          function hibrenate --description 'Instantly hibernate the system (typo catch)'
+              systemctl hibernate
+          end
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Update initramfs image
+      command: update-initramfs -u
+      
+    - name: Update GRUB
+      command: update-grub
+
+  when: (apply_prompt.user_input | default('n', true) | lower) == 'y'
 

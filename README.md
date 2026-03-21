@@ -42,6 +42,7 @@ This Ansible playbook automates the complete setup of a Kubuntu system by instal
 - ✅ Comprehensive prerequisite checking before installation
 - ✅ Detailed logging to `~/Documents/Ansible_Installation_Log/`
 - ✅ Intelligent graphics card detection and automatic driver installation
+- ✅ Automated System Hibernation Setup (Dynamic swap sizing, bootloader config, Polkit UI rules, and 'hibernate' Fish shell alias)
 - ✅ Error tracking and recovery
 
 The playbook is organized into **modular task files** by category, making it easy to:
@@ -82,7 +83,7 @@ The playbook is organized into **modular task files** by category, making it eas
 - **Compression Tools**: ZIP, GZIP, TAR
 - **Monitoring**: Htop (interactive process viewer), Gtop (GPU monitoring)
 - **Text Editors**: Nano (simple), Vim (advanced)
-- **Shell Environment**: Fish (Friendly Interactive Shell) set as system default
+- **Shell Environment**: Fish (Friendly Interactive Shell) set as system default, featuring a built-in `hibernate` shortcut alias for rapid hibernation.
 - **Virtualization Hypervisors**:
   - **KVM / QEMU (Type 1 Bare-metal Hypervisor)**: Integrated directly into the Linux kernel for near-native performance. Managed via the `virt-manager` GUI and libvirt daemon. Best for high-performance Linux workloads and hardware passthrough.
   - **VirtualBox 7.0 (Type 2 Hosted Hypervisor)**: Managed via Oracle's APT repository. A user-friendly VM manager that runs on top of the host OS natively. Best for quick Windows testing and highly compatible OVA exports.
@@ -127,7 +128,7 @@ The playbook is organized into **modular task files** by category, making it eas
 
 #### 1. Install Ansible
 
-```bash
+**```bash
 sudo apt update
 sudo apt install ansible
 

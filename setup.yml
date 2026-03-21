@@ -116,18 +116,11 @@
   # POST-TASKS: FINALIZE LOGGING
   # ============================================
   post_tasks:
-    - name: "[POST] Log installed APT packages list"
-      shell: dpkg --get-selections | grep -v deinstall
-      register: installed_packages
-      become: false
-      changed_when: false
-
-    - name: "[POST] Write installed packages to log"
+    - name: "[POST] Write playbook summary block"
       lineinfile:
         path: "{{ log_file }}"
-        line: "{{ item }}"
+        line: "Execution telemetry automatically populated above."
         state: present
-      loop: "{{ installed_packages.stdout_lines }}"
       become: false
 
     - name: "[POST] Finalize log with completion timestamp"

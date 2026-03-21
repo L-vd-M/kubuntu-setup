@@ -82,7 +82,7 @@ The playbook is organized into **modular task files** by category, making it eas
 
 ### 🔧 System Utilities
 - **Compression Tools**: ZIP, GZIP, TAR
-- **Monitoring**: Htop (interactive process viewer), Btop (resource monitor), Gtop (GPU monitoring)
+- **Monitoring**: Htop (interactive process viewer), Btop (resource monitor), Nvtop (GPU monitor), Gtop (legacy metrics)
 - **Text Editors**: Nano (simple), Vim (advanced)
 - **Shell Environment**: Fish (Friendly Interactive Shell) set as system default, featuring a built-in `hibernate` shortcut alias for rapid hibernation.
 - **Virtualization Hypervisors**:

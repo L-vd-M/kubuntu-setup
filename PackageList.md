@@ -12,6 +12,8 @@ This document serves as an explicit audit trail of core system utilities and dep
 | `nano` | Intuitive, beginner-friendly terminal text editor. | Needed for quick config file edits via CLI without steep learning curves. | `tasks/system.yml` (Text Editors) |
 | `vim` | Advanced, highly efficient terminal text editor. | Industry standard software engineering necessity for rapid Git commit parsing and bulk edits. | `tasks/programming.yml` (Dev Tools) |
 | `htop` | Interactive ncurses-based system process viewer. | Visually monitors RAM, CPU core usage, and orchestrates process termination during development. | `tasks/system.yml` (Monitoring) |
+| `btop` | Advanced visually responsive system resource monitor. | Modern C++ based metrics dashboard featuring highly dynamic network and memory curves. | `tasks/system.yml` (Monitoring) |
+| `nvtop` | GPU-centric process monitoring interface. | Essential for dynamically isolating and tracking memory/compute consumption across NVIDIA/AMD/Intel hardware. | `tasks/system.yml` (Monitoring) |
 | `curl` | Command-line tool for transferring data over URLs. | Critical for downloading remote execution scripts (e.g., NVM installations, Zotero setups). | `tasks/programming.yml` |
 | `wget` | Robust network downloader supporting resume logic. | Excellent for pulling large datasets or `.deb` packages directly over HTTP/HTTPS. | `tasks/programming.yml` |
 | `git` | Distributed version control system. | Absolute necessity for syncing the playbook, downloading scripts, and code management. | `tasks/programming.yml` |

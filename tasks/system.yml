@@ -81,13 +81,14 @@
         name: 
           - htop
           - btop
+          - nvtop
         state: present
       register: htop_install
 
-    - name: Log htop & btop installation
+    - name: Log htop, btop & nvtop installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "{% if htop_install.failed | default(false) %}✗ System monitors (htop, btop) - Status: Failed{% else %}✓ System monitors (htop, btop) - Status: {{ htop_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
+        line: "{% if htop_install.failed | default(false) %}✗ System monitors (htop, btop, nvtop) - Status: Failed{% else %}✓ System monitors (htop, btop, nvtop) - Status: {{ htop_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
         state: present
       become: no
 

@@ -65,6 +65,12 @@
         - "Default IPv4    : {{ ansible_default_ipv4.address | default('N/A') }}"
       become: false
 
+    - name: "[PRE] Record initial installed packages"
+      shell: "dpkg-query -W -f='${binary:Package}\n' | sort"
+      register: initial_packages
+      become: false
+      changed_when: false
+
   # ============================================
   # MAIN TASKS (delegated to task files)
   # ============================================
@@ -116,10 +122,31 @@
   # POST-TASKS: FINALIZE LOGGING
   # ============================================
   post_tasks:
-    - name: "[POST] Write playbook summary block"
+    - name: "[POST] Record final installed packages"
+      shell: "dpkg-query -W -f='${binary:Package}\n' | sort"
+      register: final_packages
+      become: false
+      changed_when: false
+
+    - name: "[POST] Calculate package delta"
+      set_fact:
+        installed_diff: "{{ final_packages.stdout_lines | difference(initial_packages.stdout_lines) }}"
+        removed_diff: "{{ initial_packages.stdout_lines | difference(final_packages.stdout_lines) }}"
+
+    - name: "[POST] Write package delta to log"
       lineinfile:
         path: "{{ log_file }}"
-        line: "Execution telemetry automatically populated above."
+        line: |
+          
+          ========================================
+          📦 PACKAGE DELTA (DURING SETUP)
+          ========================================
+          Newly Installed Packages:
+          {{ installed_diff | join('\n') if installed_diff else 'None' }}
+
+          Removed Packages:
+          {{ removed_diff | join('\n') if removed_diff else 'None' }}
+          ========================================
         state: present
       become: false
 

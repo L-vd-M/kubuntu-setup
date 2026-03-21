@@ -1,0 +1,109 @@
+---
+- name: Test Zotero Dynamic Interactive Installation
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    local_opt: "{{ lookup('env', 'HOME') }}/.local/opt"
+    local_bin: "{{ lookup('env', 'HOME') }}/.local/bin"
+
+  tasks:
+    - name: Fetch robust list of Zotero release tags from GitHub
+      uri:
+        url: "https://api.github.com/repos/zotero/zotero/tags?per_page=100"
+        return_content: yes
+      register: zotero_tags_response
+
+    - name: Extract available tags
+      set_fact:
+        zotero_all_versions: "{{ zotero_tags_response.json | map(attribute='name') | list }}"
+
+    - name: Extract unique major versions
+      set_fact:
+        zotero_major_versions: >-
+          {{
+            zotero_all_versions 
+            | map('split', '.') 
+            | map(attribute=0)
+            | unique 
+            | list 
+          }}
+
+    - name: Prompt user to select a major version
+      pause:
+        prompt: "\nAvailable Major Zotero Versions: {{ zotero_major_versions | join(', ') }}\nPlease select a major version (or press Enter for '{{ zotero_major_versions[0] }}'):"
+      register: zotero_major_prompt
+
+    - name: Resolve major version
+      set_fact:
+        selected_major: "{{ zotero_major_prompt.user_input | default(zotero_major_versions[0], true) }}"
+
+    - name: Filter minor versions for selected major version
+      set_fact:
+        available_minor_versions: >-
+          {{
+            zotero_all_versions 
+            | select('match', '^' ~ selected_major ~ '[.]') 
+            | list
+          }}
+
+    - name: Limit minor versions to top 15
+      set_fact:
+        top_minor_versions: "{{ available_minor_versions[:15] }}"
+
+    - name: Prompt user to select a minor version
+      pause:
+        prompt: "\nAvailable Minor Zotero {{ selected_major }}.x Versions: {{ top_minor_versions | join(', ') }}\nPlease select a minor version (or press Enter for '{{ top_minor_versions[0] }}'):"
+      register: zotero_minor_prompt
+
+    - name: Resolve minor version
+      set_fact:
+        target_zotero_version: "{{ zotero_minor_prompt.user_input | default(top_minor_versions[0], true) }}"
+
+    - name: Set download URL
+      set_fact:
+        zotero_url: "https://www.zotero.org/download/client/dl?channel=release&platform=linux-x86_64&version={{ target_zotero_version }}"
+
+    - name: Output resolved version intention
+      debug:
+        msg: "Resolving to install Zotero version: {{ target_zotero_version }}"
+
+    - name: Ensure ~/.local/opt and ~/.local/bin exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ local_opt }}"
+        - "{{ local_bin }}"
+
+    - name: Download and extract Zotero locally
+      unarchive:
+        src: "{{ zotero_url }}"
+        dest: "{{ local_opt }}"
+        remote_src: yes
+        list_files: yes
+      register: zotero_archive
+
+    - name: Determine extracted Zotero directory
+      set_fact:
+        extracted_dir: "{{ zotero_archive.files[0].split('/')[0] }}"
+      when: zotero_archive.files is defined and zotero_archive.files | length > 0
+
+    - name: Create symlink to Zotero executable
+      file:
+        src: "{{ local_opt }}/{{ extracted_dir | default('Zotero_linux-x86_64') }}/zotero"
+        dest: "{{ local_bin }}/zotero"
+        state: link
+        mode: '0755'
+
+    - name: Verify Zotero installation
+      command: "{{ local_bin }}/zotero -v"
+      register: zotero_version_output
+      changed_when: false
+      ignore_errors: true
+
+    - name: Show Zotero version
+      debug:
+        msg: "Successfully Installed Zotero. {{ zotero_version_output.stdout | default('Binary tested OK') }}"

@@ -1,0 +1,78 @@
+---
+- name: Test Typst Dynamic Installation
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    local_bin: "{{ lookup('env', 'HOME') }}/.local/bin"
+
+  tasks:
+    - name: Fetch recent Typst releases from GitHub
+      uri:
+        url: https://api.github.com/repos/typst/typst/releases
+        return_content: yes
+      register: typst_releases
+
+    - name: Extract top 10 versions
+      set_fact:
+        available_typst_versions: "{{ typst_releases.json[:10] | map(attribute='tag_name') | map('regex_replace', '^v', '') | list }}"
+
+    - name: Display available versions
+      debug:
+        msg: "Available Typst versions: {{ available_typst_versions | join(', ') }}"
+
+    - name: Prompt user to select a version
+      pause:
+        prompt: "\nPlease type a version from the list above (or type 'latest' to auto-select {{ available_typst_versions[0] }}):"
+      register: typst_prompt
+
+    - name: Resolve user selection
+      set_fact:
+        requested_typst_version: "{{ typst_prompt.user_input | default('latest', true) }}"
+
+    - name: Determine actual target version
+      set_fact:
+        target_typst_version: "{{ available_typst_versions[0] if requested_typst_version == 'latest' else requested_typst_version | regex_replace('^v', '') }}"
+
+    - name: Set download URL
+      set_fact:
+        typst_url: "https://github.com/typst/typst/releases/download/v{{ target_typst_version }}/typst-x86_64-unknown-linux-musl.tar.xz"
+        download_dir: "/tmp/typst_{{ target_typst_version }}"
+
+    - name: Output resolved version
+      debug:
+        msg: "Resolving to install Typst version: {{ target_typst_version }}"
+
+    - name: Ensure ~/.local/bin exists
+      file:
+        path: "{{ local_bin }}"
+        state: directory
+        mode: '0755'
+
+    - name: Create temporary download directory
+      file:
+        path: "{{ download_dir }}"
+        state: directory
+
+    - name: Download and extract Typst locally
+      unarchive:
+        src: "{{ typst_url }}"
+        dest: "{{ download_dir }}"
+        remote_src: yes
+      
+    - name: Install Typst binary to ~/.local/bin
+      copy:
+        src: "{{ download_dir }}/typst-x86_64-unknown-linux-musl/typst"
+        dest: "{{ local_bin }}/typst"
+        mode: '0755'
+        remote_src: yes
+
+    - name: Verify Typst installation
+      command: "{{ local_bin }}/typst --version"
+      register: typst_version_output
+      changed_when: false
+
+    - name: Show Typst version
+      debug:
+        msg: "Successfully Installed: {{ typst_version_output.stdout }}"

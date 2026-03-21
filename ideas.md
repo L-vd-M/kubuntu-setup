@@ -1,0 +1,1 @@
+Add the ability to download Zotero version 7 or 6. Add like a dubble menu style where the user can first select a major version like 8, 7 or 6 and the from there the user should select the minor virsion such a 8.0.4

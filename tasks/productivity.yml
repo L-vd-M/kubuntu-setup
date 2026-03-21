@@ -66,25 +66,97 @@
       ignore_errors: yes
       changed_when: false
 
-    - name: Install Zotero via APT repository
+    - name: Install Zotero dynamically via interactive menu
       block:
-        - name: Add Zotero APT repository (zotero-deb)
-          shell: curl -sL https://raw.githubusercontent.com/retorquere/zotero-deb/master/install.sh | sudo bash
-          args:
-            creates: /etc/apt/sources.list.d/zotero.list
+        - name: Zotero Interactive Downloader
+          block:
+            - name: Fetch robust list of Zotero release tags from GitHub
+              # The GitHub API provides the most comprehensive history of versions natively
+              uri:
+                url: "https://api.github.com/repos/zotero/zotero/tags?per_page=100"
+                return_content: yes
+              register: zotero_tags_response
 
-        - name: Install Zotero
-          apt:
-            name: zotero
-            state: present
-            update_cache: yes
-          register: zotero_install
+            - name: Parse available Zotero tags
+              set_fact:
+                zotero_all_versions: "{{ zotero_tags_response.json | map(attribute='name') | list }}"
+
+            - name: Extract unique major versions (e.g., 6, 7, 8)
+              # Using string split instead of regex to cleanly isolate the major digits
+              # without running into YAML / Jinja2 backslash escape complexities
+              set_fact:
+                zotero_major_versions: >-
+                  {{
+                    zotero_all_versions 
+                    | map('split', '.') 
+                    | map(attribute=0)
+                    | unique 
+                    | list 
+                  }}
+
+            - name: Prompt user to select a major version
+              pause:
+                prompt: "\nAvailable Major Zotero Versions: {{ zotero_major_versions | join(', ') }}\nPlease select a major version (or press Enter for '{{ zotero_major_versions[0] }}'):"
+              register: zotero_major_prompt
+
+            - name: Resolve major version
+              set_fact:
+                selected_major: "{{ zotero_major_prompt.user_input | default(zotero_major_versions[0], true) }}"
+
+            - name: Filter minor versions for selected major version
+              # Using `[.]` literal character class instead of `\\.` to match the dot safely
+              set_fact:
+                available_minor_versions: >-
+                  {{
+                    zotero_all_versions 
+                    | select('match', '^' ~ selected_major ~ '[.]') 
+                    | list
+                  }}
+
+            - name: Limit minor versions to top 15
+              set_fact:
+                top_minor_versions: "{{ available_minor_versions[:15] }}"
+
+            - name: Prompt user to select a minor version
+              pause:
+                prompt: "\nAvailable Minor Zotero {{ selected_major }}.x Versions: {{ top_minor_versions | join(', ') }}\nPlease select a minor version (or press Enter for '{{ top_minor_versions[0] }}'):"
+              register: zotero_minor_prompt
+
+            - name: Resolve minor version
+              set_fact:
+                target_zotero_version: "{{ zotero_minor_prompt.user_input | default(top_minor_versions[0], true) }}"
+
+            - name: Set Zotero download URL
+              set_fact:
+                zotero_url: "https://www.zotero.org/download/client/dl?channel=release&platform=linux-x86_64&version={{ target_zotero_version }}"
+
+            - name: Download and extract Zotero locally
+              # Zotero distributions are tarballs, we unpack straight into /opt
+              unarchive:
+                src: "{{ zotero_url }}"
+                dest: "/opt"
+                remote_src: yes
+                list_files: yes
+              register: zotero_archive
+
+            - name: Determine extracted Zotero directory
+              set_fact:
+                extracted_dir: "{{ zotero_archive.files[0].split('/')[0] }}"
+              when: zotero_archive.files is defined and zotero_archive.files | length > 0
+
+            - name: Create symlink to Zotero executable
+              file:
+                src: "/opt/{{ extracted_dir | default('Zotero_linux-x86_64') }}/zotero"
+                dest: "/usr/local/bin/zotero"
+                state: link
+                force: yes
+              register: zotero_install
           when: zotero_check.rc != 0
 
         - name: Log Zotero installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Zotero citation manager - Status: {{ 'Installed' if zotero_install.changed | default(false) else 'Already installed' }}"
+            line: "✓ Zotero citation manager - Status: {{ 'Installed interactively (Tarball)' if zotero_install.changed | default(false) else 'Already installed' }}"
             state: present
           become: no
 

@@ -55,7 +55,7 @@
 
 ### 6. Productivity & Office (`productivity.yml`)
 - **Obsidian** (AppImage dynamically pulled from GitHub releases via API)
-- **Zotero** (via `zotero-deb` APT repository)
+- **Zotero** (Dynamic interactive double-menu selection, extracts from Tarball)
 - **Academic Suite**: `okular`, `texstudio`, `pandoc` (via APT)
 - **Diagramming & Planning**: `drawio`, `superproductivity` (via Snap)
 - **Google Chrome** (via Google APT repo)
@@ -73,9 +73,9 @@
 - **Fix Applied**: Updated task to query GitHub API dynamically and filter out `arm64` when running on `x86_64` (and vice versa) utilizing a `dpkg_arch` variable mapping.
 
 #### 2. Zotero archive format mismatch
-- **File**: `tasks/productivity.yml` lines 62, 68–70
-- **Problem**: Format changed to `.tar.xz`.
-- **Fix Applied**: Completely replaced the tarball installation approach with the `zotero-deb` APT repository (by `retorquere`). 
+- **File**: `tasks/productivity.yml`
+- **Problem**: Format changed to `.tar.xz`, and user requested the ability to download older versions (6.x, 7.x).
+- **Fix Applied**: Implemented a dynamic interactive double-menu prompt that polls Zotero's GitHub tags. The user selects a major and minor version, which is then dynamically downloaded and linked locally in `~/.local/opt` and `~/.local/bin`.
 
 #### 3. Node.js Installation Strategy
 - **File**: `tasks/programming.yml` line 40

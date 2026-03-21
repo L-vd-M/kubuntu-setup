@@ -38,7 +38,7 @@
 This Ansible playbook automates the complete setup of a Kubuntu system by installing and configuring a curated selection of modern, productive software. Instead of manually installing each application, simply run the playbook and let it handle everything.
 
 **NEW IN v2.2**: 
-- ✅ Zotero now installs via APT repository (`zotero-deb`) for automatic updates
+- ✅ Zotero now installs dynamically via interactive prompt, allowing you to select major/minor versions (e.g., 6.x, 7.x, 8.x)
 - ✅ Comprehensive prerequisite checking before installation
 - ✅ Detailed logging to `~/Documents/Ansible_Installation_Log/`
 - ✅ Intelligent graphics card detection and automatic driver installation
@@ -96,7 +96,7 @@ The playbook is organized into **modular task files** by category, making it eas
 
 ### 📊 Productivity & Office
 - **Note-Taking**: Obsidian (markdown-based PKM)
-- **Citation Manager**: Zotero (via APT repo — auto-updating)
+- **Citation Manager**: Zotero (Dynamic interactive version selection via GitHub API and Tarball)
 - **Academic Suite**: Okular (Advanced PDF Reading & Annotation), TeXstudio (LaTeX Editor), Pandoc (Markdown to PDF/Word converter)
 - **Diagramming & Planning**: Draw.io (Network Architectures), Super Productivity (Task Manager & Pomodoro Tracker)
 - **Browser**: Google Chrome

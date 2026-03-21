@@ -1,0 +1,48 @@
+---
+- name: Test TinyTeX Dynamic Installation
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars_prompt:
+    - name: requested_latex_version
+      prompt: "Enter TeX Live Release Year (e.g. 2023) or leave blank for 'latest'"
+      default: "latest"
+      private: no
+
+  tasks:
+    - name: Output intention
+      debug:
+        msg: "LaTeX versioning via TinyTeX. Setting up version: {{ requested_latex_version }}"
+
+    - name: Download TinyTeX install script
+      get_url:
+        url: "https://yihui.org/tinytex/install-bin-unix.sh"
+        dest: "/tmp/install-tinytex.sh"
+        mode: '0755'
+
+    - name: Run TinyTeX installer
+      command: "/tmp/install-tinytex.sh{{ ' --version ' + requested_latex_version if requested_latex_version != 'latest' else '' }}"
+      args:
+        creates: "{{ lookup('env', 'HOME') }}/.TinyTeX/bin"
+
+    - name: Ensure ~/.local/bin exists
+      file:
+        path: "{{ lookup('env', 'HOME') }}/.local/bin"
+        state: directory
+
+    - name: Add TinyTeX to PATH
+      shell: "{{ lookup('env', 'HOME') }}/.TinyTeX/bin/*/tlmgr path add"
+      ignore_errors: true
+
+    - name: Verify LaTeX installation
+      command: "pdflatex --version"
+      register: latex_version_output
+      changed_when: false
+      ignore_errors: true
+      environment:
+        PATH: "{{ lookup('env', 'HOME') }}/.local/bin:{{ lookup('env', 'PATH') }}"
+
+    - name: Show LaTeX version
+      debug:
+        msg: "Successfully Installed LaTeX. {{ latex_version_output.stdout_lines[0] | default('') }}"

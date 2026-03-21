@@ -1,22 +1,9 @@
 ---
-- name: Test and Setup Hibernation
-  hosts: localhost
-  connection: local
-  gather_facts: yes
-  become: yes
-
-  vars:
+- name: Calculate Dynamic Swap Configurations
+  set_fact:
     swap_file: "/swapfile"
-    
-    # [DYNAMIC CONFIGURATION]
-    # We dynamically calculate the required swap size by adding a 2GB safety buffer
-    # to the exact total RAM dynamically detected on the machine running this playbook.
     required_swap_mb: "{{ ansible_memtotal_mb + 2048 }}"
-    
-    # Convert that MB value into gigabytes and round up to a whole number for dd
-    required_swap_gb: "{{ (required_swap_mb | int / 1024) | round(0, 'ceil') | int }}"
-
-  tasks:
+    required_swap_gb: "{{ ((ansible_memtotal_mb + 2048) | int / 1024) | round(0, 'ceil') | int }}"
     - name: Ensure OS is Debian or Ubuntu based
       fail:
         msg: "This hibernation automation is explicitly designed for Debian/Ubuntu environments (Kubuntu, Ubuntu, Mint, Pop!_OS). It relies on `update-grub` and `initramfs-tools`. Other distributions like Fedora (Dracut) or Arch (mkinitcpio) handle kernel bootloaders differently."

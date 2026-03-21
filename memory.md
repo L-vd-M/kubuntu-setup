@@ -147,3 +147,10 @@
 | Logging pattern (lineinfile to log_file) | ✅ Consistent across all task files |
 | GPU detection logic (lspci grep) | ✅ Correct |
 | block/rescue error handling | ✅ Present on all major sections |
+
+### 🛑 March 21, 2026 - Ansible Test Run Audit
+- **Successes**: Graphics auto-detection, NVIDIA installations, KVM/Virt-Manager, Node.js, core utilities (Discord, VLC), and prerequisite testing all operated perfectly.
+- **Cascading Failures**: 
+  1. A massive string of `Permission denied` errors struck `/etc/apt/keyrings`, `/var/lib/dpkg/lock-frontend`, and `/opt/` (affecting Chrome, Spotify, VS Code, Obsidian, VirtualBox, Snaps). 
+  2. **Root Cause**: The master playbook lacks global `become: yes`, causing Ansible to execute tasks safely as the user instead of `root`, ignoring the `--ask-become-pass` runtime flag.
+  3. **Syntax Collapse**: `tasks/hibernation.yml` crashed the playbook outright because it was copied directly from a standalone controller playbook and retained `hosts: localhost` and `gather_facts: no` headers, which throws syntax errors when natively `included` via tasks.

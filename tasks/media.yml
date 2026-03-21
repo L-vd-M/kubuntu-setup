@@ -124,7 +124,7 @@
     - name: Log media utilities installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Media utilities (VLC, FFmpeg) - Status: {{ media_utils_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
+        line: "{% if media_utils_install.failed | default(false) %}✗ Media utilities (VLC, FFmpeg) - Status: Failed{% else %}✓ Media utilities (VLC, FFmpeg) - Status: {{ media_utils_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
         state: present
       become: no
 

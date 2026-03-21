@@ -192,7 +192,7 @@
     - name: Log development tools installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Development tools (curl, wget, vim) - Status: {{ dev_tools_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
+        line: "{% if dev_tools_install.failed | default(false) %}✗ Development tools (curl, wget, vim) - Status: Failed{% else %}✓ Development tools (curl, wget, vim) - Status: {{ dev_tools_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
         state: present
       become: no
 

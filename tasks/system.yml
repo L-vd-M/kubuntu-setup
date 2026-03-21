@@ -32,7 +32,7 @@
     - name: Log compression utilities installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Compression utilities installed (zip, gzip, tar) - Status: {{ compression_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
+        line: "{% if compression_install.failed | default(false) %}✗ Compression utilities installed (zip, gzip, tar) - Status: Failed{% else %}✓ Compression utilities installed (zip, gzip, tar) - Status: {{ compression_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
         state: present
       become: no
 
@@ -64,6 +64,12 @@
           ignore_errors: yes
           changed_when: false
 
+        - name: Check if btop is installed
+          command: which btop
+          register: btop_check
+          ignore_errors: yes
+          changed_when: false
+
         - name: Check if gtop is installed
           command: which gtop
           register: gtop_check
@@ -72,14 +78,16 @@
 
     - name: Install system monitoring tools
       apt:
-        name: htop
+        name: 
+          - htop
+          - btop
         state: present
       register: htop_install
 
-    - name: Log htop installation
+    - name: Log htop & btop installation
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Htop system monitor - Status: {{ htop_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
+        line: "{% if htop_install.failed | default(false) %}✗ System monitors (htop, btop) - Status: Failed{% else %}✓ System monitors (htop, btop) - Status: {{ htop_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
         state: present
       become: no
 
@@ -100,7 +108,7 @@
         - name: Log gtop installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Gtop system monitor - Status: {{ gtop_install.changed | default(false) | ternary('Installed', 'Skipped (npm not available)') }}"
+            line: "{% if gtop_install.failed | default(false) %}✗ Gtop system monitor - Status: Failed{% else %}✓ Gtop system monitor - Status: {{ gtop_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
             state: present
           become: no
 
@@ -137,7 +145,7 @@
         - name: Log VirtualBox installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Oracle VirtualBox 7.0 - Status: {{ virtualbox_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
+            line: "{% if virtualbox_install.failed | default(false) %}✗ Oracle VirtualBox 7.0 - Status: Failed{% else %}✓ Oracle VirtualBox 7.0 - Status: {{ virtualbox_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
             state: present
           become: no
 
@@ -169,12 +177,12 @@
         - name: Log Virt-Manager installation
           lineinfile:
             path: "{{ log_file }}"
-            line: "✓ Virt-Manager (KVM/QEMU) - Status: {{ virt_manager_install.changed | default(false) | ternary('Installed', 'Already installed') }}"
+            line: "{% if virt_manager_install.failed | default(false) %}✗ Virt-Manager (KVM/QEMU) - Status: Failed{% else %}✓ Virt-Manager (KVM/QEMU) - Status: {{ virt_manager_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
             state: present
           become: no
 
     - name: Check for build essentials
-      command: dpkg -l | grep build-essential
+      shell: dpkg -l | grep build-essential
       register: build_essential_check
       ignore_errors: yes
       changed_when: false

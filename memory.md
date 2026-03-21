@@ -158,3 +158,17 @@
   5. **The `hibernation.yml` Indentation Error**: After resolving the `hosts: localhost` header issue in `hibernation.yml` by removing the playbook declaration, the underlying logic previously nested inside the `tasks:` dictionary parameter remained uniformly indented by 4 spaces. Ansible `include_tasks:` requires a flat YAML list cleanly pinned to the root margin (`0` spaces). Leaving the `- name:` list definitions 4 spaces deep inherently forced Ansible to attempt parsing the array as a variable continuation of `required_swap_gb`, throwing a lethal syntax panic formatting crash. **Fix**: Python string manipulation completely stripped 4 spaces of legacy indentation from all lines below the initial header block.
   6. **`tmp-test/fix_playbook.py` Maintenance Script**: To prevent recurring identical Node.js (`.nvm`) and YAML `ansible_env` permission denials everywhere, I wrote and archived a Python mitigation program currently residing in `/tmp-test/fix_playbook.py`. Calling it natively restructures the entirety of `setup.yml` recursively, globally switching all `ansible_env.HOME` strings to use a universal `host_user_home` context variable instead.
   7. **Jinja2 Template Infinite Recursion Trap**: Make sure any mass-renaming/replace algorithms do not operate globally if the injection payload maps to itself. The `fix_playbook.py` inadvertently replaced the exact lookup payload inside the dynamic `host_user_home:` global variable initialization with `{{ host_user_home }}`, which forced Ansible to parse `host_user_home: "{{ host_user_home }}"`, natively throwing a massive lethal recursion depth crash right on boot. **Fix**: Carefully isolate Python find/replace bounds and ensure YAML configuration templates never recursively wrap.
+
+### March 21 Master Execution Log Analytics
+*(Based strictly from `/Logs/kubuntu_setup_20260321T154814.log`)*
+
+✅ **Confirmed Flawless Deployments:**
+- Dynamic graphics card detection and conditional NVIDIA 535 proprietary driver allocation
+- Compression tools, nano editor, VirtualBox, KVM Virt-Manager libvirtd automation
+- Dynamic Node.js NVM aliasing and GitHub tarball extraction processes (Obsidian AppImages)
+- Academic Suites (Okular, TexStudio, Pandoc) and Snap store installations (SuperProductivity, Draw.io)
+- Total network, Git, Pciutils, Sudo user escalation prerequisite mapping
+
+🔴 **Identified Latent Faults:**
+- The Build Essentials module pipeline (`dpkg -l | grep build-essential`) technically failed strictly because the standard `command` module in Ansible explicitly forbids bash piping operators. **Fix:** Replaced the `command` task declaration with `shell` to natively execute string pipes safely.
+- (Acknowledged non-fatal faults): Anti-Gravity python project clone ignored locally, WinApps target absent.

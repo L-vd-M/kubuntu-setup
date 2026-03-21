@@ -42,8 +42,9 @@ This Ansible playbook automates the complete setup of a Kubuntu system by instal
 - ✅ Comprehensive prerequisite checking before installation
 - ✅ Detailed logging to `~/Documents/Ansible_Installation_Log/`
 - ✅ Intelligent graphics card detection and automatic driver installation
+- ✅ Secure Sudo Architecture (Dynamic `host_user_home` mapping preventing `/root` escalation traps) 
 - ✅ Automated System Hibernation Setup (Dynamic swap sizing, bootloader config, Polkit UI rules, and 'hibernate' Fish shell alias)
-- ✅ Error tracking and recovery
+- ✅ Error tracking, failure state captures, and Python mitigation scripts
 
 The playbook is organized into **modular task files** by category, making it easy to:
 - ✅ Verify system prerequisites before starting
@@ -75,13 +76,13 @@ The playbook is organized into **modular task files** by category, making it eas
 ### 📊 Detailed Installation Logging (NEW!)
 - **Log Location**: `~/Documents/Ansible_Installation_Log/`
 - **Timestamped Logs**: Each run gets a unique timestamped log file
-- **Installation Tracking**: Every task logged with status
+- **Dynamic State Tracking**: Advanced Jinja Python enhancements explicitly log `[✓ Installed/Updated]`, `[✓ Already installed]`, or `[✗ Failed]` states per app.
 - **Error Tracking**: Failed tasks clearly marked
 - **Summary Reports**: Installation summary at completion
 
 ### 🔧 System Utilities
 - **Compression Tools**: ZIP, GZIP, TAR
-- **Monitoring**: Htop (interactive process viewer), Gtop (GPU monitoring)
+- **Monitoring**: Htop (interactive process viewer), Btop (resource monitor), Gtop (GPU monitoring)
 - **Text Editors**: Nano (simple), Vim (advanced)
 - **Shell Environment**: Fish (Friendly Interactive Shell) set as system default, featuring a built-in `hibernate` shortcut alias for rapid hibernation.
 - **Virtualization Hypervisors**:

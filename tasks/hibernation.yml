@@ -168,6 +168,27 @@
             group: root
             mode: '0644'
 
+        - name: Ensure system-wide fish functions directory exists
+          file:
+            path: /etc/fish/functions
+            state: directory
+            mode: '0755'
+
+        - name: Create system-wide 'hibernate' alias for Fish shell
+          copy:
+            dest: /etc/fish/functions/hibernate.fish
+            content: |
+              function hibernate --description 'Instantly hibernate the system'
+                  systemctl hibernate
+              end
+              
+              function hibrenate --description 'Instantly hibernate the system (typo catch)'
+                  systemctl hibernate
+              end
+            owner: root
+            group: root
+            mode: '0644'
+
         - name: Update initramfs image
           command: update-initramfs -u
           

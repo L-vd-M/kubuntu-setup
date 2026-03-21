@@ -9,8 +9,9 @@
     # ============================================
     # LOGGING CONFIGURATION
     # ============================================
-    log_dir: "{{ ansible_env.HOME }}/Documents/Ansible_Installation_Log"
+    log_dir: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) | regex_replace('^', '/home/') }}/Documents/Ansible_Installation_Log"
     log_file: "{{ log_dir }}/kubuntu_setup_{{ ansible_date_time.iso8601_basic_short }}.log"
+
 
   # ============================================
   # PRE-TASKS: LOGGING SETUP

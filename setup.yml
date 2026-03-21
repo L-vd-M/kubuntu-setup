@@ -191,8 +191,6 @@
       when:
         - needs_reboot | default(false)
         - (reboot_prompt.user_input | default('n', true) | lower) == 'y'
-        state: present
-      become: false
 
     - name: "[POST] Display log file location"
       debug:

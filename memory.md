@@ -172,3 +172,8 @@
 🔴 **Identified Latent Faults:**
 - The Build Essentials module pipeline (`dpkg -l | grep build-essential`) technically failed strictly because the standard `command` module in Ansible explicitly forbids bash piping operators. **Fix:** Replaced the `command` task declaration with `shell` to natively execute string pipes safely.
 - (Acknowledged non-fatal faults): Anti-Gravity python project clone ignored locally, WinApps target absent.
+
+### 🛑 March 21, 2026 - Missing UI Software & GPU Driver Purging
+- **Obsidian AppImage**: Discovered that extracting the Obsidian AppImage natively missed registering a `.desktop` schema into `/usr/share/applications/`. Consequently, the application was successfully installed but completely invisible to the graphical Application Launcher. **Fix**: Injected a formal Desktop Entry creation block into `productivity.yml` after symlink generation.
+- **Microsoft Office Missing**: Excel and Outlook are deployed via WinApps. WinApps structurally requires a fully operational Windows Virtual Machine running in KVM/VirtualBox to function as the application backend before MS Office can be spawned natively in Linux. **Fix**: Explicitly formalized the active Windows VM requirement heavily in the newly refactored `README.md`.
+- **Dynamic GPU Driver Purging**: To prevent kernel bloat and conflicting graphic acceleration packages across dual-boot machines, conditional `apt purge` blocks were embedded into `graphics.yml`. If `lspci` formally detects an absence of NVIDIA, AMD, or Intel hardware, their respective legacy display packages (e.g., `xserver-xorg-video-amdgpu`) are actively purged from the underlying OS.

@@ -46,6 +46,22 @@
             force: yes
           ignore_errors: yes
 
+        - name: Create Obsidian Desktop Entry
+          copy:
+            dest: /usr/share/applications/obsidian.desktop
+            content: |
+              [Desktop Entry]
+              Name=Obsidian
+              Exec=/usr/local/bin/obsidian %u
+              Terminal=false
+              Type=Application
+              Icon=obsidian
+              StartupWMClass=obsidian
+              Comment=Obsidian Note-Taking App
+              Categories=Office;
+            mode: '0644'
+          ignore_errors: yes
+
         - name: Clean up installer
           file:
             path: /tmp/Obsidian-latest.AppImage

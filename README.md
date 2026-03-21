@@ -1,9 +1,7 @@
-# 🖥️ Kubuntu Setup Playbook with Prerequisite Checks & Logging
+# 🖥️ Kubuntu Setup Playbook (v2.2)
 
-> A comprehensive, modular Ansible playbook for automated setup and software installation on Kubuntu systems with intelligent graphics driver detection, prerequisite verification, and detailed logging.
+> A comprehensive, modular Ansible playbook for automated setup and software installation on Kubuntu systems. Features intelligent graphics driver detection, prerequisite verification, automated hibernation syncing, and detailed execution logging.
 
-**Version**: 2.2  
-**Last Updated**: March 2026  
 **Compatible With**: Kubuntu 22.04 LTS and later  
 **Maintained By**: Lourens van der Merwe  
 
@@ -13,104 +11,61 @@
 
 - [Overview](#overview)
 - [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
 - [Project Structure](#project-structure)
-- [Usage](#usage)
-- [File Creation Guide](#file-creation-guide)
-- [Software Categories](#software-categories)
-- [Graphics Card Drivers](#graphics-card-drivers)
-- [Configuration](#configuration)
-- [Adding New Software](#adding-new-software)
-- [Where & How to Add Software](#where--how-to-add-software)
-- [Logging & Troubleshooting](#logging--troubleshooting)
-- [Post-Installation](#post-installation)
-- [Maintenance](#maintenance)
-- [Advanced Usage](#advanced-usage)
-- [FAQ](#faq)
-- [Contributing](#contributing)
-- [License](#license)
+- [Prerequisites](#prerequisites)
+- [Installation & Usage](#installation--usage)
 
 ---
 
 ## 🎯 Overview
 
-This Ansible playbook automates the complete setup of a Kubuntu system by installing and configuring a curated selection of modern, productive software. Instead of manually installing each application, simply run the playbook and let it handle everything.
+This Ansible playbook automates the complete setup of a Kubuntu system by installing and configuring a curated selection of modern, productive software. 
 
 **NEW IN v2.2**: 
-- ✅ Zotero now installs dynamically via interactive prompt, allowing you to select major/minor versions (e.g., 6.x, 7.x, 8.x)
-- ✅ Comprehensive prerequisite checking before installation
-- ✅ Detailed logging to `~/Documents/Ansible_Installation_Log/`
-- ✅ Intelligent graphics card detection and automatic driver installation
-- ✅ Secure Sudo Architecture (Dynamic `host_user_home` mapping preventing `/root` escalation traps) 
-- ✅ Automated System Hibernation Setup (Dynamic swap sizing, bootloader config, Polkit UI rules, and 'hibernate' Fish shell alias)
-- ✅ Error tracking, failure state captures, and Python mitigation scripts
-
-The playbook is organized into **modular task files** by category, making it easy to:
-- ✅ Verify system prerequisites before starting
-- ✅ Track installation progress with detailed logs
-- ✅ Automatically detect and install graphics drivers
-- ✅ Install only what you need
-- ✅ Add new software easily
-- ✅ Understand what gets installed where
-- ✅ Recover from installation errors
+- ✅ **Dynamic Active GPU Purging:** Automatically detects absent GPUs (e.g., AMD) and purges their unused drivers to reduce kernel bloat.
+- ✅ **Secure Architecture**: Dynamic `host_user_home` mapping preventing `/root` escalation traps.
+- ✅ **Dynamic Zotero**: Installs dynamically via interactive prompt, allowing you to select versions!
+- ✅ **Automated Hibernation**: Swap sizing, bootloader config, Polkit UI rules, and 'hibernate' Fish shell alias.
+- ✅ **Rigorous Telemetry**: Detailed `lineinfile` array tracking logging to `~/Documents/Ansible_Installation_Log/`.
 
 ---
 
 ## ✨ Features
 
-### ✅ Prerequisite Verification (NEW!)
-- **System Check**: Verifies Kubuntu/Debian-based system
-- **Dependency Check**: Ensures all required tools are installed
-- **Internet Check**: Verifies internet connectivity
-- **Permission Check**: Validates sudo privileges
-- **Detailed Logging**: All checks logged for review
-
 ### 🎮 Graphics Card Drivers
-- **Automatic Detection**: Detects NVIDIA, AMD, and Intel GPUs
-- **User Confirmation**: Shows detected cards for verification
-- **Automatic Installation**: Installs appropriate drivers based on hardware
-- **Support for Multiple GPUs**: Handles systems with multiple graphics cards
-- **Kernel Module Management**: Properly configures kernel modules
-
-### 📊 Detailed Installation Logging (NEW!)
-- **Log Location**: `~/Documents/Ansible_Installation_Log/`
-- **Timestamped Logs**: Each run gets a unique timestamped log file
-- **Dynamic State Tracking**: Advanced Jinja Python enhancements explicitly log `[✓ Installed/Updated]`, `[✓ Already installed]`, or `[✗ Failed]` states per app.
-- **Error Tracking**: Failed tasks clearly marked
-- **Summary Reports**: Installation summary at completion
-
-### 🔧 System Utilities
-- **Compression Tools**: ZIP, GZIP, TAR
-- **Monitoring**: Htop (interactive process viewer), Btop (resource monitor), Nvtop (GPU monitor), Gtop (node.js visual dashboard)
-- **Text Editors**: Nano (simple), Vim (advanced)
-- **Shell Environment**: Fish (Friendly Interactive Shell) set as system default, featuring a built-in `hibernate` shortcut alias for rapid hibernation.
-- **Virtualization Hypervisors**:
-  - **KVM / QEMU (Type 1 Bare-metal Hypervisor)**: Integrated directly into the Linux kernel for near-native performance. Managed via the `virt-manager` GUI and libvirt daemon. Best for high-performance Linux workloads and hardware passthrough.
-  - **VirtualBox 7.0 (Type 2 Hosted Hypervisor)**: Managed via Oracle's APT repository. A user-friendly VM manager that runs on top of the host OS natively. Best for quick Windows testing and highly compatible OVA exports.
-
-### 👨‍💻 Programming & Development
-- **Version Control**: Git
-- **Runtime**: Node.js 22.x (managed via NVM)
-- **Code Editor**: Visual Studio Code
-- **Application Launcher**: Antigravity
-- **Telecom Engineering Suite**: GNU Radio (SDR / Signal Processing), Wireshark (Packet Analysis), Jupyter Notebooks (Data Modeling)
-- **Development Utilities**: curl, wget, vim
+- **Automatic Detection**: Detects NVIDIA, AMD, and Intel GPUs natively.
+- **Dynamic Purging**: Removes unused kernel graphics modules (`xserver-xorg-video-*`) for hardware that does not exist on your motherboard.
+- **Automatic Installation**: Installs appropriate proprietary and open-source drivers securely.
 
 ### 📊 Productivity & Office
-- **Note-Taking**: Obsidian (markdown-based PKM)
-- **Citation Manager**: Zotero (Dynamic interactive version selection via GitHub API and Tarball)
-- **Academic Suite**: Okular (Advanced PDF Reading & Annotation), TeXstudio (LaTeX Editor), Pandoc (Markdown to PDF/Word converter)
-- **Diagramming & Planning**: Draw.io (Network Architectures), Super Productivity (Task Manager & Pomodoro Tracker)
-- **Browser**: Google Chrome
-- **Microsoft Office**: Excel, Outlook (via WinApps)
+- **Note-Taking**: Obsidian (markdown-based PKM statically linked to your desktop launcher).
+- **Academic Suite**: Zotero, Okular, TeXstudio, Pandoc.
+- **Microsoft Office (via WinApps)**: Excel, Outlook, and WhatsApp. 
+  - *⚠️ **IMPORTANT**: WinApps requires a fully functioning Windows Virtual Machine running in KVM/QEMU in the background. After the playbook installs the WinApps frontend, you must manually connect it to your VM before running `winapps install excel`.*
 
-### 🎮 Media & Communication
-- **Chat**: Discord
-- **Music**: Spotify
-- **Streaming**: OBS Studio (Open Broadcaster Software)
-- **Messaging**: WhatsApp (via WinApps)
-- **Media Utilities**: VLC, FFmpeg
+### 🔧 System Utilities & Monitoring
+- **Monitoring Stack**: Htop (classic), Btop (modern C++ dashboard), Nvtop (dedicated GPU process monitor), Gtop (node.js UI).
+- **Shell Environment**: Fish (Friendly Interactive Shell).
+- **Hypervisors**: KVM / QEMU (bare-metal) and VirtualBox 7.0 (hosted).
+
+---
+
+## 📁 Project Structure
+
+```text
+kubuntu-setup/
+├── setup.yml                    # Main playbook (controller)
+├── README.md                    # This documentation
+├── PackageList.md               # Extensive audit of all packages
+└── tasks/                       # Task directory
+    ├── check_prerequisites.yml  # Network and package manager verification
+    ├── graphics.yml             # GPU detection, installation, and unused purging
+    ├── system.yml               # System utilities & monitoring (Htop, Btop, Nvtop)
+    ├── programming.yml          # Development tools, IDEs, VS Code & Git
+    ├── productivity.yml         # Office, MS Office (WinApps), Obsidian & Zotero
+    ├── media.yml                # Media & communication tools (OBS, Discord)
+    └── hibernation.yml          # Interactive Swap & Hibernation Configurator
+```
 
 ---
 
@@ -118,77 +73,49 @@ The playbook is organized into **modular task files** by category, making it eas
 
 ### System Requirements
 - **OS**: Kubuntu 22.04 LTS or later
-- **Architecture**: x86_64 (64-bit)
-- **RAM**: 2GB minimum (4GB+ recommended)
-- **Disk Space**: 10GB+ available
+- **Architecture**: x86_64
 - **Internet**: Stable connection required for downloads
-- **Graphics Card**: Any NVIDIA, AMD, or Intel GPU (optional, but drivers will be installed)
-- **Sudo Privileges**: Required for package installation
+- **Sudo**, **Python 3**, and **Ansible** are explicitly required to deploy this architecture.
 
 ### Pre-Installation Software
 
-#### 1. Install Ansible
+Run the following to prepare a brand new machine entirely for playbook execution:
 
-**```bash
-sudo apt update
-sudo apt install ansible
+```bash
+sudo apt update && sudo apt upgrade -y 
+sudo apt install ansible git -y
+```
 
-or
+*(Optional) Configure passwordless sudo for the current user to prevent Ansibe from pausing:*
+```bash
+sudo visudo
+# Add this line at the absolute bottom of the file securely:
+# YOUR_USERNAME ALL=(ALL) NOPASSWD: ALL
+```
 
-sudo apt update && sudo apt upgrade -y && sudo apt install ansible && sudo apt install git && sudo visudo 
+---
 
-{
-Add this line at the end:
-- YOUR_USERNAME ALL=(ALL) NOPASSWD: ALL
-Save and exit (Ctrl+X, then Y, then Enter).
-}
+## 🚀 Installation & Usage
 
-## Installation
-### Method 1: Clone from GitHub (Recommended)
-#### Clone the repository
-git clone <your-repo-url> ~/kubuntu-setup
+### 1. Clone the Repository
+```bash
+git clone https://github.com/L-vd-M/kubuntu-setup.git ~/kubuntu-setup
 cd ~/kubuntu-setup
+```
 
-#### Verify file structure
-ls -la
-tree  # Install 'tree' command if not available: sudo apt install tree
-
-### Method 2: Manual Setup
-#### Create directory structure
-mkdir -p ~/kubuntu-setup/tasks
-cd ~/kubuntu-setup
-
-#### Create all necessary files (see File Creation Guide below)
-kubuntu-setup/
-│
-├── setup.yml                    # Main playbook (controller)
-├── README.md                    # This documentation
-├── .gitignore                   # Git ignore file (optional)
-│
-└── tasks/                       # Task directory
-    ├── check_prerequisites.yml  
-    ├── graphics.yml             
-    ├── system.yml               
-    ├── programming.yml          
-    ├── productivity.yml         
-    ├── media.yml                
-    └── hibernation.yml          # Interactive Hibernation Setup
-    ├── check_prerequisites.yml  # Prerequisite verification (NEW!)
-    ├── graphics.yml             # Graphics card detection & driver install
-    ├── system.yml               # System utilities & virtualization
-    ├── programming.yml          # Development tools, IDEs & launchers
-    ├── productivity.yml         # Office & productivity apps
-    └── media.yml                # Media & communication tools
-
-## Verify Installation
-#### Check that all files exist
-ls -la
-ls -la tasks/
-
-#### Validate playbook syntax
+### 2. Validate Architecture Check
+```bash
 ansible-playbook setup.yml --syntax-check
+```
 
-
-## Run Installation
+### 3. Deploy
+Execute the master framework. It will prompt for your sudo password (unless disabled above) and securely escalate permissions dynamically.
+```bash
 ansible-playbook setup.yml --ask-become-pass
+```
 
+### 4. Review Telemetry
+Check your explicitly formatted log file dynamically generated in your Documents folder:
+```bash
+cat ~/Documents/Ansible_Installation_Log/*.log
+```

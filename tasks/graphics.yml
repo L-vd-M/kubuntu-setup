@@ -156,6 +156,36 @@
       become: no
   when: has_intel
 
+# --- PURGE UNUSED DRIVERS ---
+- name: Purge unused GPU drivers
+  block:
+    - name: Purge NVIDIA drivers if no NVIDIA GPU exists
+      apt:
+        name: "^nvidia-.*"
+        state: absent
+        purge: yes
+      when: not has_nvidia
+
+    - name: Purge AMD drivers if no AMD GPU exists
+      apt:
+        name: 
+          - xserver-xorg-video-amdgpu
+          - xserver-xorg-video-radeon
+        state: absent
+        purge: yes
+      when: not has_amd
+
+    - name: Purge Intel drivers if no Intel GPU exists
+      apt:
+        name:
+          - xserver-xorg-video-intel
+          - intel-media-va-driver
+        state: absent
+        purge: yes
+      when: not has_intel
+  become: yes
+  ignore_errors: yes
+
 - name: Update initramfs
   shell: update-initramfs -u
   become: yes

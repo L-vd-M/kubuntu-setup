@@ -195,6 +195,50 @@
         state: present
       become: no
 
+    - name: Check for Fish shell
+      command: which fish
+      register: fish_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install and configure Fish shell
+      block:
+        - name: Add Fish PPA for the latest version
+          apt_repository:
+            repo: ppa:fish-shell/release-3
+            state: present
+          become: yes
+          ignore_errors: yes
+
+        - name: Install Fish shell
+          apt:
+            name: fish
+            state: present
+            update_cache: yes
+          become: yes
+          register: fish_install
+
+        - name: Ensure Fish is listed as a valid login shell
+          lineinfile:
+            path: /etc/shells
+            line: /usr/bin/fish
+            state: present
+          become: yes
+
+        - name: Change default shell to Fish for active user
+          # Safely handles either normal ansible-playbook execution or sudo ansible-playbook
+          user:
+            name: "{{ lookup('env', 'SUDO_USER') | default(lookup('env', 'USER'), true) }}"
+            shell: /usr/bin/fish
+          become: yes
+
+        - name: Log Fish shell installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Fish Shell - Status: {{ 'Installed and set as default' if fish_install.changed | default(false) else 'Already installed' }}"
+            state: present
+          become: no
+
   rescue:
     - name: Log system utilities error
       lineinfile:

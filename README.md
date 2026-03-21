@@ -82,6 +82,7 @@ The playbook is organized into **modular task files** by category, making it eas
 - **Compression Tools**: ZIP, GZIP, TAR
 - **Monitoring**: Htop (interactive process viewer), Gtop (GPU monitoring)
 - **Text Editors**: Nano (simple), Vim (advanced)
+- **Shell Environment**: Fish (Friendly Interactive Shell) set as system default
 - **Virtualization Hypervisors**:
   - **KVM / QEMU (Type 1 Bare-metal Hypervisor)**: Integrated directly into the Linux kernel for near-native performance. Managed via the `virt-manager` GUI and libvirt daemon. Best for high-performance Linux workloads and hardware passthrough.
   - **VirtualBox 7.0 (Type 2 Hosted Hypervisor)**: Managed via Oracle's APT repository. A user-friendly VM manager that runs on top of the host OS natively. Best for quick Windows testing and highly compatible OVA exports.
@@ -163,6 +164,13 @@ kubuntu-setup/
 ├── .gitignore                   # Git ignore file (optional)
 │
 └── tasks/                       # Task directory
+    ├── check_prerequisites.yml  
+    ├── graphics.yml             
+    ├── system.yml               
+    ├── programming.yml          
+    ├── productivity.yml         
+    ├── media.yml                
+    └── hibernation.yml          # Interactive Hibernation Setup
     ├── check_prerequisites.yml  # Prerequisite verification (NEW!)
     ├── graphics.yml             # Graphics card detection & driver install
     ├── system.yml               # System utilities & virtualization

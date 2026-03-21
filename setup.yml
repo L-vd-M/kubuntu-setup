@@ -103,6 +103,12 @@
     - name: "[PROD] Install productivity and office apps"
       include_tasks: tasks/productivity.yml
 
+    # ------------------------------------------
+    # SECTION 7: SYSTEM HIBERNATION
+    # ------------------------------------------
+    - name: "[SYS] Configure System Hibernation"
+      include_tasks: tasks/hibernation.yml
+
   # ============================================
   # POST-TASKS: FINALIZE LOGGING
   # ============================================

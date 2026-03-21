@@ -34,6 +34,7 @@
 - **Compression**: `zip`, `gzip`, `tar`
 - **Editors**: `nano`
 - **Monitoring**: `htop`, `gtop` (via npm)
+- **Shell**: `fish` (configured safely with user login shell change)
 - **Virtualization Hypervisors**:
   - **KVM / QEMU (Type 1 Bare-metal)**: `virt-manager`, `libvirt-daemon-system`, `qemu-system-x86`, `bridge-utils`
   - **VirtualBox 7.0 (Type 2 Hosted)**: `virtualbox-7.0` (via Oracle APT repo)
@@ -60,6 +61,11 @@
 - **Diagramming & Planning**: `drawio`, `superproductivity` (via Snap)
 - **Google Chrome** (via Google APT repo)
 - **WinApps** (cloned from GitHub, manual installer)
+
+### 7. System Hibernation (`hibernation.yml`)
+- **Swap Scaling**: Dynamically resizes the `/swapfile` based on system RAM using `dd`.
+- **Bootloader Params**: Calculates root partition UUID and block Offset and updates `GRUB` and `initramfs`.
+- **UI Support**: Injects modern Polkit JS rules to seamlessly enable hibernation buttons natively in KDE/GNOME.
 
 ---
 

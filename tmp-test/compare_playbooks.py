@@ -1,6 +1,4 @@
 import glob
-import yaml
-import sys
 import re
 
 def parse_yaml_safely(filepath):

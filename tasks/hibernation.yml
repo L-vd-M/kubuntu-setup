@@ -17,6 +17,11 @@
     required_swap_gb: "{{ (required_swap_mb | int / 1024) | round(0, 'ceil') | int }}"
 
   tasks:
+    - name: Ensure OS is Debian or Ubuntu based
+      fail:
+        msg: "This hibernation automation is explicitly designed for Debian/Ubuntu environments (Kubuntu, Ubuntu, Mint, Pop!_OS). It relies on `update-grub` and `initramfs-tools`. Other distributions like Fedora (Dracut) or Arch (mkinitcpio) handle kernel bootloaders differently."
+      when: ansible_os_family != "Debian"
+
     - name: Display current system parameters
       debug:
         msg: >-

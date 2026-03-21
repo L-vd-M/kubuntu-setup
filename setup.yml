@@ -158,6 +158,39 @@
           KUBUNTU SETUP COMPLETED SUCCESSFULLY
           Finished : {{ ansible_date_time.iso8601 }}
           ========================================
+
+    - name: "[POST] Log reboot requirement"
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "⚠ REBOOT REQUIRED: GPU drivers and/or hibernation changes need a system restart to take effect."
+        state: present
+      become: no
+      when: needs_reboot | default(false)
+
+    - name: "[POST] Prompt for system reboot if required"
+      pause:
+        prompt: |
+
+          ========================================
+          ⚠  SYSTEM REBOOT REQUIRED
+          ========================================
+          The following changes need a reboot to activate:
+            - NVIDIA GPU drivers (kernel module must be loaded)
+            - NVIDIA GRUB kernel parameters (DRM modeset, power management)
+            - Hibernation settings (GRUB resume params + initramfs)
+
+          A reboot will be scheduled 1 minute from now if you say yes.
+          Do you want to schedule the reboot? (y/N)
+      register: reboot_prompt
+      when: needs_reboot | default(false)
+      become: no
+
+    - name: "[POST] Schedule system reboot in 1 minute"
+      command: shutdown -r +1 "Rebooting to apply Kubuntu setup changes (GPU drivers and hibernation)."
+      become: yes
+      when:
+        - needs_reboot | default(false)
+        - (reboot_prompt.user_input | default('n', true) | lower) == 'y'
         state: present
       become: false
 

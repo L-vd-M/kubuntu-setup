@@ -107,35 +107,12 @@
         force: no
 
     - name: Add resume params to GRUB_CMDLINE_LINUX_DEFAULT
-      # Uses backrefs to add the parameters exactly where they belong
+      # Idempotent: negative lookahead prevents duplicate resume= params on re-runs
       lineinfile:
         path: /etc/default/grub
-        regexp: '^GRUB_CMDLINE_LINUX_DEFAULT="(.*(?!resume=).*)"$'
-        line: 'GRUB_CMDLINE_LINUX_DEFAULT="\1 resume=UUID={{ target_uuid }} resume_offset={{ target_offset }}"'
+        regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")((?!.*resume=UUID).*)"\s*$'
+        line: '\1\2 resume=UUID={{ target_uuid }} resume_offset={{ target_offset }}"'
         backrefs: yes
-
-    - name: Ensure legacy polkit localauthority directory exists
-      file:
-        path: /etc/polkit-1/localauthority/50-local.d
-        state: directory
-        mode: '0755'
-
-    - name: Enable UI Hibernation Support locally for KDE / GNOME (Legacy PKLA)
-      copy:
-        dest: /etc/polkit-1/localauthority/50-local.d/com.ubuntu.enable-hibernate.pkla
-        content: |
-          [Re-enable hibernate by default in upower]
-          Identity=unix-user:*
-          Action=org.freedesktop.upower.hibernate
-          ResultActive=yes
-          
-          [Re-enable hibernate by default in logind]
-          Identity=unix-user:*
-          Action=org.freedesktop.login1.hibernate;org.freedesktop.login1.handle-hibernate-key;org.freedesktop.login1;org.freedesktop.login1.hibernate-multiple-sessions;org.freedesktop.login1.hibernate-ignore-inhibit
-          ResultActive=yes
-        owner: root
-        group: root
-        mode: '0644'
 
     - name: Ensure modern polkit rules directory exists
       file:
@@ -183,9 +160,36 @@
 
     - name: Update initramfs image
       command: update-initramfs -u
-      
+
     - name: Update GRUB
       command: update-grub
+
+    - name: Verify hibernation resume file was written correctly
+      shell: "grep -E 'RESUME=UUID' /etc/initramfs-tools/conf.d/resume"
+      register: resume_verify
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Verify GRUB resume parameters were applied
+      shell: "grep -i 'resume=UUID' /etc/default/grub"
+      register: grub_resume_verify
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Log hibernation verification results
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "Hibernation configuration verification:"
+        - "  Resume file: {{ 'OK - ' + resume_verify.stdout | trim if resume_verify.rc == 0 else 'MISSING - check /etc/initramfs-tools/conf.d/resume' }}"
+        - "  GRUB resume: {{ 'OK - ' + grub_resume_verify.stdout | trim if grub_resume_verify.rc == 0 else 'MISSING - resume params may not have been applied' }}"
+      become: no
+
+    - name: Set reboot required flag for hibernation configuration
+      set_fact:
+        needs_reboot: true
 
   when: (apply_prompt.user_input | default('n', true) | lower) == 'y'
 

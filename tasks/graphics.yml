@@ -6,19 +6,20 @@
   become: yes
 
 - name: Detect NVIDIA graphics cards
-  shell: lspci | grep -i nvidia || echo "No NVIDIA GPU detected"
+  # Use '|| true' so empty output (no GPU) never causes task failure
+  shell: lspci | grep -i nvidia || true
   register: nvidia_gpus
   changed_when: false
   ignore_errors: yes
 
 - name: Detect AMD graphics cards
-  shell: lspci | grep -i amd | grep -iE "vga|display" || echo "No AMD GPU detected"
+  shell: lspci | grep -i amd | grep -iE "vga|display" || true
   register: amd_gpus
   changed_when: false
   ignore_errors: yes
 
 - name: Detect Intel graphics cards
-  shell: lspci | grep -i intel | grep -iE "vga|display" || echo "No Intel GPU detected"
+  shell: lspci | grep -i intel | grep -iE "vga|display" || true
   register: intel_gpus
   changed_when: false
   ignore_errors: yes
@@ -31,9 +32,9 @@
   become: no
   loop:
     - "Detected Graphics Cards:"
-    - "  NVIDIA: {{ nvidia_gpus.stdout | default('None') }}"
-    - "  AMD: {{ amd_gpus.stdout | default('None') }}"
-    - "  Intel: {{ intel_gpus.stdout | default('None') }}"
+    - "  NVIDIA: {{ nvidia_gpus.stdout | trim if nvidia_gpus.stdout | trim else 'None detected' }}"
+    - "  AMD: {{ amd_gpus.stdout | trim if amd_gpus.stdout | trim else 'None detected' }}"
+    - "  Intel: {{ intel_gpus.stdout | trim if intel_gpus.stdout | trim else 'None detected' }}"
 
 - name: Display detected graphics cards
   debug:
@@ -41,9 +42,9 @@
       ========================================
       DETECTED GRAPHICS CARDS
       ========================================
-      NVIDIA: {{ nvidia_gpus.stdout }}
-      AMD:    {{ amd_gpus.stdout }}
-      Intel:  {{ intel_gpus.stdout }}
+      NVIDIA: {{ nvidia_gpus.stdout | trim if nvidia_gpus.stdout | trim else 'None detected' }}
+      AMD:    {{ amd_gpus.stdout | trim if amd_gpus.stdout | trim else 'None detected' }}
+      Intel:  {{ intel_gpus.stdout | trim if intel_gpus.stdout | trim else 'None detected' }}
       ========================================
 
 - name: User confirmation for driver installation
@@ -61,20 +62,22 @@
   become: no
 
 - name: Set GPU presence facts
+  # Check for non-empty stdout; avoids false positives from fallback echo strings
   set_fact:
-    has_nvidia: "{{ 'nvidia' in nvidia_gpus.stdout | lower }}"
-    has_amd: "{{ ('amd' in amd_gpus.stdout | lower) or ('radeon' in amd_gpus.stdout | lower) }}"
-    has_intel: "{{ 'intel' in intel_gpus.stdout | lower }}"
+    has_nvidia: "{{ nvidia_gpus.stdout | trim | length > 0 }}"
+    has_amd: "{{ amd_gpus.stdout | trim | length > 0 }}"
+    has_intel: "{{ intel_gpus.stdout | trim | length > 0 }}"
 
 # --- NVIDIA ---
 - name: Install NVIDIA drivers
   block:
-    - name: Install NVIDIA driver 535
+    - name: Install NVIDIA drivers
       apt:
         name:
-          - nvidia-driver-535
-          - nvidia-utils-535
+          - nvidia-driver-550
+          - nvidia-utils-550
           - nvidia-settings
+          - nvidia-prime
         state: present
       become: yes
       register: nvidia_install
@@ -93,6 +96,76 @@
         line: "⚠ NVIDIA driver installation encountered an issue - continuing"
         state: present
       become: no
+  when: has_nvidia
+
+# --- NVIDIA GRUB KERNEL PARAMETERS ---
+# These params fix HDMI detection and enable proper suspend/hibernate for NVIDIA Ampere GPUs.
+# - nvidia_drm.modeset=1          : kernel mode-setting for display enumeration
+# - NVreg_DynamicPowerManagement=0: disables GPU power-gating that hides HDMI on wake
+# - NVreg_PreserveVideoMemoryAllocations=1: keeps VRAM allocated (required for hibernate)
+- name: Add NVIDIA kernel parameters to GRUB
+  block:
+    - name: Backup GRUB config before NVIDIA parameter modification
+      copy:
+        src: /etc/default/grub
+        dest: /etc/default/grub.bak
+        remote_src: yes
+        force: no
+
+    - name: Add NVIDIA kernel parameters to GRUB_CMDLINE_LINUX_DEFAULT
+      # Idempotent: negative lookahead ensures params are not duplicated on re-runs
+      lineinfile:
+        path: /etc/default/grub
+        regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")((?!.*nvidia_drm\.modeset).*)"\s*$'
+        line: '\1\2 nvidia.NVreg_PreserveVideoMemoryAllocations=1 nvidia.NVreg_DynamicPowerManagement=0 nvidia_drm.modeset=1"'
+        backrefs: yes
+      register: grub_nvidia_params
+
+    - name: Update GRUB with NVIDIA kernel parameters
+      command: update-grub
+      when: grub_nvidia_params.changed
+
+    - name: Log NVIDIA kernel parameters applied
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ NVIDIA kernel parameters applied to GRUB (DRM modeset, power management, memory preservation)"
+        state: present
+      become: no
+  become: yes
+  when: has_nvidia
+
+# --- NVIDIA XORG DISPLAY CONFIGURATION ---
+# Explicit Xorg device config ensures X11 enumerates the HDMI port on boot.
+# AllowEmptyInitialConfiguration handles cases where no connected display is found at startup.
+- name: Configure Xorg for NVIDIA display output
+  block:
+    - name: Ensure Xorg configuration directory exists
+      file:
+        path: /etc/X11/xorg.conf.d
+        state: directory
+        mode: '0755'
+
+    - name: Create Xorg NVIDIA display configuration
+      copy:
+        dest: /etc/X11/xorg.conf.d/20-nvidia.conf
+        content: |
+          Section "Device"
+              Identifier     "NVIDIA Card"
+              Driver         "nvidia"
+              Option         "AllowEmptyInitialConfiguration"
+              Option         "PrimaryGPU" "yes"
+          EndSection
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Log Xorg NVIDIA configuration created
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "✓ Xorg NVIDIA display configuration written to /etc/X11/xorg.conf.d/20-nvidia.conf"
+        state: present
+      become: no
+  become: yes
   when: has_nvidia
 
 # --- AMD ---
@@ -205,3 +278,10 @@
     line: "Driver verification:\n{{ driver_verification.stdout }}"
     state: present
   become: no
+
+- name: Set reboot required flag for NVIDIA hardware
+  # A reboot is always needed after installing/verifying NVIDIA drivers so the kernel
+  # can load the module and the GRUB kernel parameters take effect.
+  set_fact:
+    needs_reboot: true
+  when: has_nvidia

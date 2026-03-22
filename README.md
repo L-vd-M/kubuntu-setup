@@ -114,7 +114,51 @@ Execute the master framework. It will prompt for your sudo password (unless disa
 ansible-playbook setup.yml --ask-become-pass
 ```
 
-### 4. Review Telemetry
+### 4. Secure Boot & NVIDIA — Two Options
+
+> **This step is only relevant if your machine has Secure Boot enabled and an NVIDIA GPU.**
+> If `sudo mokutil --sb-state` prints `SecureBoot disabled`, skip this section entirely.
+
+When Secure Boot is active the kernel rejects unsigned modules. The NVIDIA DKMS module will fail to load silently — `prime-select` reports `nvidia` but the GPU is never actually used. You have two options:
+
+---
+
+#### Option A — MOK Enrollment (recommended, keeps Secure Boot on)
+
+The playbook handles the `mokutil --import` step automatically and prints a **one-time password** at the end of the run. Complete the enrollment on the first reboot:
+
+1. After the playbook finishes, note the MOK password printed in the Ansible output (labelled `MOK password:`)
+2. Reboot — a blue/grey **MOK Manager** screen will appear in the UEFI boot sequence
+3. Follow these steps in that screen:
+   - Select **Enroll MOK** → **Continue** → **Yes**
+   - Enter the password from the Ansible output
+   - Select **Reboot**
+
+This is a **one-time action per machine**. The key persists in UEFI firmware across all future kernel upgrades — DKMS automatically re-signs each new module build with the same key.
+
+If you missed the password or need to re-enroll manually:
+```bash
+sudo mokutil --import /var/lib/shim-signed/mok/MOK.der
+# Enter a one-time password when prompted, then reboot
+```
+
+**Pros:** Boot chain remains verified; UEFI-level protection against bootkit/rootkit tampering is preserved.  
+**Cons:** Requires a one-time manual step in the UEFI MOK Manager on first reboot.
+
+---
+
+#### Option B — Disable Secure Boot in BIOS
+
+Reboot → BIOS → **Security** → **Secure Boot** → **Disabled** → Save & Exit.
+
+After disabling, all DKMS-built modules (NVIDIA, VirtualBox, etc.) load freely without signing.
+
+**Pros:** No key management; all current and future kernel modules load without any extra steps.  
+**Cons:** The UEFI boot chain is no longer verified — a tampered bootloader or kernel image would not be detected. For a personal workstation without full-disk encryption the practical risk is low, but it is a meaningful reduction in defence-in-depth.
+
+---
+
+### 5. Review Telemetry
 Check your explicitly formatted log file dynamically generated in your Documents folder:
 ```bash
 cat ~/Documents/Ansible_Installation_Log/*.log
@@ -176,6 +220,7 @@ Hardware-aware GPU driver installation:
 - **`prime-select nvidia`** (performance mode): MSI Vector GP76's HDMI port is wired to the dGPU; the default `on-demand` PRIME profile power-gates the dGPU and hides the port — switching to `nvidia` activates the dGPU as primary GPU
 - **nvidia systemd services** (`nvidia-suspend`, `nvidia-hibernate`, `nvidia-resume`): enabled to guarantee clean suspend/resume cycles with DRM modeset active
 - **Xorg config** written to `/etc/X11/xorg.conf.d/20-nvidia.conf` with `AllowEmptyInitialConfiguration` and `PrimaryGPU`
+- **Secure Boot MOK enrollment**: checks Secure Boot state with `mokutil --sb-state`; if the DKMS-generated signing key at `/var/lib/shim-signed/mok/MOK.der` is not yet enrolled, generates a one-time 16-char hex password via `openssl rand -hex 8`, pipes it to `mokutil --import`, and prints it prominently in the Ansible output — user completes enrollment in the UEFI MOK Manager on the next reboot; idempotent (skipped if already enrolled or Secure Boot is disabled)
 - AMD: `xserver-xorg-video-amdgpu`, `mesa-vulkan-drivers`, `libvulkan1`
 - Intel: `intel-gpu-tools`, `intel-media-va-driver`, `mesa-vulkan-drivers`, `va-driver-all`
 - Purges drivers for hardware *not* present (reduces kernel module bloat)
@@ -258,6 +303,8 @@ Fully automated hibernation configurator:
 | `host_user_home` variable | Resolves real user home under sudo to prevent `/root` path traps |
 | `dpkg_arch` variable | Architecture-aware binary downloads (amd64 / arm64) |
 | Timestamped log file | Full execution audit trail in `~/Documents/Ansible_Installation_Log/` |
+| `printf '%s\n%s\n' | mokutil --import` | Secure Boot MOK enrollment — pipes the one-time password twice to satisfy `mokutil`'s interactive prompt; password generated with `openssl rand -hex 8` (hex-only, no shell injection risk) |
+| `mokutil --test-key` idempotency guard | Checks enrollment state before importing — skips the entire block if key is already enrolled, making re-runs safe |
 
 ---
 
@@ -272,6 +319,7 @@ Fully automated hibernation configurator:
 | Swap file | Must exist at `/swapfile` for hibernation (playbook will resize it if needed) |
 | WinApps | Requires manual KVM/QEMU Windows VM setup post-install |
 | Reboot | **Required** after first run — NVIDIA drivers + GRUB params only activate after reboot |
+| Secure Boot + NVIDIA | If Secure Boot is enabled, either enroll the MOK key (Option A — recommended) or disable Secure Boot in BIOS (Option B) — see Installation step 4 for both options and their trade-offs |
 
 ---
 
@@ -284,3 +332,4 @@ Fully automated hibernation configurator:
 | Hibernation polkit rules not picked up by KDE | Using deprecated PKLA format (`.pkla` files) | Removed PKLA tasks; kept only modern JavaScript rules |
 | GPU detection false positives | `|| echo "No NVIDIA GPU detected"` → string "nvidia" matched in fallback text | Changed to `|| true`; fact-setting now uses `stdout \| trim \| length > 0` |
 | No reboot prompt after playbook | No post-task reboot handling | Added `needs_reboot` propagation and `shutdown -r +1` prompt in post-tasks |
+| NVIDIA module rejected at boot on Secure Boot machines — `glxinfo` shows iGPU despite `prime-select nvidia` | DKMS-generated signing key exists but was never enrolled in UEFI MOK database; `modprobe nvidia` fails with "Key was rejected by service" | `mokutil --import` automated in `graphics.yml`; one-time password printed to Ansible output; user completes enrollment via blue/grey MOK Manager screen on next reboot |

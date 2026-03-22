@@ -4,6 +4,58 @@
 
 ---
 
+## Secure Boot — Required First Step
+
+Before working through this guide, check whether Secure Boot is blocking the NVIDIA module:
+
+```bash
+mokutil --sb-state
+lsmod | grep nvidia_drm
+```
+
+If `SecureBoot enabled` and `nvidia_drm` does **not** appear in `lsmod`, the module is being rejected by the kernel. The rest of this guide will not work until one of the following is resolved.
+
+### Option A — Enroll the MOK key (keeps Secure Boot on)
+
+Check the DKMS-generated signing key exists:
+
+```bash
+ls /var/lib/shim-signed/mok/MOK.der
+```
+
+If it exists, enroll it:
+
+```bash
+sudo mokutil --import /var/lib/shim-signed/mok/MOK.der
+# Set a short one-time password when prompted
+sudo reboot
+```
+
+On reboot, a blue **MOK Manager** screen appears in the UEFI sequence:
+**Enroll MOK → Continue → Yes → enter password → Reboot**
+
+After the second reboot, `lsmod | grep nvidia_drm` should show the module loaded. This is a one-time step — the key persists across all future kernel upgrades.
+
+**Pros:** Secure Boot remains active; boot chain stays verified.  
+**Cons:** One manual step required in UEFI on first setup.
+
+### Option B — Disable Secure Boot in BIOS
+
+Reboot → BIOS → **Security** → **Secure Boot** → **Disabled** → Save & Exit.
+
+**Pros:** No key management; all DKMS modules load freely forever.  
+**Cons:** UEFI boot chain verification is lost — tampered bootloader/kernel would not be detected. Practical risk is low for a personal workstation without full-disk encryption.
+
+| | Option A (MOK enrollment) | Option B (Disable Secure Boot) |
+|---|---|---|
+| Secure Boot remains active | Yes | No |
+| One-time manual UEFI step | Yes | No |
+| Future kernel upgrades | Automatic (DKMS re-signs) | No action needed |
+| Boot chain verification | Maintained | Lost |
+| Practical risk (personal workstation) | — | Low |
+
+---
+
 ## Prerequisites
 
 All three of the following must have been applied before rebooting:
@@ -75,7 +127,7 @@ sudo reboot
 With the cable connected to a powered-on external display:
 
 ```bash
-xrandr --listproviders
+I h
 ```
 **Expected output (example):**
 ```
@@ -147,6 +199,7 @@ xrandr --output HDMI-0 --same-as eDP-1-1 --auto
 | `glxinfo` shows Intel renderer | X session started before PRIME switch took effect | Full reboot required (not just re-login) |
 | No `NVIDIA-0` in `xrandr --listproviders` | nvidia-drm not loaded | `sudo modprobe nvidia-drm` then check `lsmod \| grep nvidia_drm` |
 | External screen black but detected | Resolution/refresh mismatch | `xrandr --output HDMI-0 --mode 1920x1080 --rate 60` |
+| `nvidia_drm` not in `lsmod`; `modprobe` fails with "Key was rejected by service" | Secure Boot active, NVIDIA module not signed/enrolled | Enroll the MOK key (Option A) or disable Secure Boot in BIOS (Option B) — see **Secure Boot** section at top of this document |
 
 ---
 

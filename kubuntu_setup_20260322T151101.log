@@ -1,7 +1,7 @@
 ========================================
 Kubuntu Setup Playbook Execution Log
 ========================================
-Started   : 2026-03-22T12:47:14Z
+Started   : 2026-03-22T13:11:01Z
 Hostname  : lourens-vectorgp7612ugs
 OS        : Ubuntu 24.04
 Release   : noble
@@ -43,19 +43,19 @@ drm_gpuvm              49152  1 xe
 drm_gpusvm_helper      36864  1 xe
 drm_exec               12288  2 drm_gpuvm,xe
 drm_suballoc_helper    24576  1 xe
-i915                 4837376  3
+i915                 4837376  2
 drm_buddy              28672  2 xe,i915
 drm_display_helper    290816  2 xe,i915
 cec                    98304  3 drm_display_helper,xe,i915
 i2c_algo_bit           16384  2 xe,i915
 intel_vsec             24576  3 intel_pmc_ssram_telemetry,pmt_telemetry,xe
 nvidia_uvm           2076672  0
-nvidia_drm            135168  22
-nvidia_modeset       1638400  72 nvidia_drm
-nvidia              104144896  839 nvidia_uvm,nvidia_drm,nvidia_modeset
-video                  77824  4 msi_wmi,xe,i915,nvidia_modeset
+nvidia_drm            135168  20
+nvidia_modeset       1638400  65 nvidia_drm
+nvidia              104144896  752 nvidia_uvm,nvidia_drm,nvidia_modeset
 drm_ttm_helper         16384  2 nvidia_drm,xe
 ttm                   126976  3 drm_ttm_helper,xe,i915
+video                  77824  4 msi_wmi,xe,i915,nvidia_modeset
 
 ========== [3/7] SYSTEM UTILITIES ==========
 Checking system utilities...
@@ -111,7 +111,7 @@ None
 
 ========================================
 KUBUNTU SETUP COMPLETED SUCCESSFULLY
-Finished : 2026-03-22T12:47:14Z
+Finished : 2026-03-22T13:11:01Z
 ========================================
 
 ⚠ REBOOT REQUIRED: GPU drivers and/or hibernation changes need a system restart to take effect.

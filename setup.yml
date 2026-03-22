@@ -65,6 +65,22 @@
         - "Default IPv4    : {{ ansible_default_ipv4.address | default('N/A') }}"
       become: false
 
+    # Clean up stale APT source entries that poison all apt operations.
+    # The VirtualBox repo was previously signed with .asc; we now use .gpg.
+    # If both exist, APT refuses to read any sources at all.
+    - name: "[PRE] Remove stale VirtualBox APT key (.asc format)"
+      file:
+        path: /etc/apt/keyrings/oracle_vbox_2016.asc
+        state: absent
+      ignore_errors: yes
+
+    - name: "[PRE] Remove stale VirtualBox repo entry (.asc-based)"
+      shell: |
+        rm -f /etc/apt/sources.list.d/*virtualbox*.list
+        rm -f /etc/apt/sources.list.d/*virtualbox*.sources
+      changed_when: false
+      ignore_errors: yes
+
     - name: "[PRE] Record initial installed packages"
       shell: "dpkg-query -W -f='${binary:Package}\n' | sort"
       register: initial_packages

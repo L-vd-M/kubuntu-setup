@@ -172,6 +172,9 @@ Hardware-aware GPU driver installation:
   - `nvidia_drm.modeset=1` — enables kernel mode-setting for HDMI/display enumeration
   - `nvidia.NVreg_DynamicPowerManagement=0` — disables GPU power-gating that hides HDMI on wake
   - `nvidia.NVreg_PreserveVideoMemoryAllocations=1` — keeps VRAM allocated (required for hibernation)
+- **`/etc/modprobe.d/nvidia-drm.conf`**: `options nvidia-drm modeset=1` — belt-and-suspenders; ensures modeset is honoured even when the initrd loads the module before GRUB params are visible
+- **`prime-select nvidia`** (performance mode): MSI Vector GP76's HDMI port is wired to the dGPU; the default `on-demand` PRIME profile power-gates the dGPU and hides the port — switching to `nvidia` activates the dGPU as primary GPU
+- **nvidia systemd services** (`nvidia-suspend`, `nvidia-hibernate`, `nvidia-resume`): enabled to guarantee clean suspend/resume cycles with DRM modeset active
 - **Xorg config** written to `/etc/X11/xorg.conf.d/20-nvidia.conf` with `AllowEmptyInitialConfiguration` and `PrimaryGPU`
 - AMD: `xserver-xorg-video-amdgpu`, `mesa-vulkan-drivers`, `libvulkan1`
 - Intel: `intel-gpu-tools`, `intel-media-va-driver`, `mesa-vulkan-drivers`, `va-driver-all`
@@ -246,6 +249,8 @@ Fully automated hibernation configurator:
 | Negative lookahead regexp in `lineinfile` | GRUB kernel params (graphics + hibernation) — idempotent, no duplicates on re-run |
 | `force: no` on GRUB backup | Preserves the original pre-playbook GRUB config across multiple runs |
 | `backrefs: yes` | Appends to existing GRUB_CMDLINE_LINUX_DEFAULT without replacing the whole line |
+| `prime-select nvidia` + idempotent query | Sets dGPU as primary so dGPU-wired HDMI port is visible; skipped if already in nvidia mode |
+| `/etc/modprobe.d/nvidia-drm.conf` | Belt-and-suspenders `modeset=1` — survives UEFI initrd orderings that bypass GRUB cmdline |
 | `needs_reboot` set_fact | Propagated from graphics.yml / hibernation.yml → consumed by setup.yml post-task |
 | `register: grub_nvidia_params` + `when: grub_nvidia_params.changed` | Calls `update-grub` only if GRUB was actually modified |
 | GitHub API + version selector | Obsidian (latest release), Zotero (dynamic major/minor prompt) |
@@ -274,7 +279,7 @@ Fully automated hibernation configurator:
 
 | Issue | Root Cause | Fix Applied |
 |---|---|---|
-| HDMI disappears after reboot | Driver 535 missing Ampere tuning; no GRUB kernel params; no Xorg config | Upgraded to driver 550 + added `nvidia_drm.modeset=1`, power management, and Xorg device config |
+| HDMI disappears after reboot | Driver 535 missing Ampere tuning; no GRUB kernel params; no Xorg config; PRIME defaulting to `on-demand` power-gates the dGPU, hiding the dGPU-wired HDMI port | Upgraded to driver 550 + `nvidia_drm.modeset=1` (GRUB + `/etc/modprobe.d/nvidia-drm.conf`); Xorg device config; `prime-select nvidia` (performance mode); nvidia systemd power services enabled |
 | Hibernation not available after reboot | GRUB regex had broken negative lookahead → resume params not actually written | Replaced with correct `((?!.*resume=UUID).*)` pattern + backrefs |
 | Hibernation polkit rules not picked up by KDE | Using deprecated PKLA format (`.pkla` files) | Removed PKLA tasks; kept only modern JavaScript rules |
 | GPU detection false positives | `|| echo "No NVIDIA GPU detected"` → string "nvidia" matched in fallback text | Changed to `|| true`; fact-setting now uses `stdout \| trim \| length > 0` |

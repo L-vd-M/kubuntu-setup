@@ -168,6 +168,63 @@
   become: yes
   when: has_nvidia
 
+# --- NVIDIA MODPROBE (DRM MODESET) ---
+# Belt-and-suspenders: declare modeset via modprobe in addition to the GRUB cmdline.
+# On some UEFI systems the initrd loads the nvidia-drm module before GRUB params are
+# visible, so this file is the only reliable way to guarantee modeset=1 is honoured.
+- name: Create nvidia-drm modprobe configuration
+  copy:
+    dest: /etc/modprobe.d/nvidia-drm.conf
+    content: "options nvidia-drm modeset=1\n"
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  when: has_nvidia
+
+# --- NVIDIA PRIME (PERFORMANCE MODE) ---
+# On Optimus laptops (e.g. MSI Vector GP76) the HDMI port is wired directly to the
+# NVIDIA dGPU, not the Intel iGPU.  The default 'on-demand' PRIME profile power-gates
+# the dGPU, which hides the HDMI port from the entire display stack.  Switching to
+# 'nvidia' mode makes the dGPU the primary GPU so the HDMI port is active after reboot.
+- name: Query current PRIME GPU profile
+  command: prime-select query
+  become: yes
+  register: prime_current_profile
+  changed_when: false
+  failed_when: false
+  when: has_nvidia
+
+- name: Set NVIDIA PRIME to performance mode (nvidia)
+  command: prime-select nvidia
+  become: yes
+  register: prime_select_result
+  when: has_nvidia and (prime_current_profile.stdout | default('') | trim) != 'nvidia'
+
+- name: Log NVIDIA PRIME mode set
+  lineinfile:
+    path: "{{ log_file }}"
+    line: "✓ NVIDIA PRIME mode set to 'nvidia' (performance) — dGPU is primary, HDMI port active"
+    state: present
+  become: no
+  when: has_nvidia and prime_select_result is defined and prime_select_result.changed
+
+# --- NVIDIA SYSTEMD POWER MANAGEMENT SERVICES ---
+# Required for clean suspend / resume / hibernate when nvidia-drm modeset=1 is active.
+# Without these, the kernel DRM framebuffer is not correctly released/restored on sleep.
+- name: Enable NVIDIA systemd power management services
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+    daemon_reload: yes
+  become: yes
+  loop:
+    - nvidia-suspend.service
+    - nvidia-hibernate.service
+    - nvidia-resume.service
+  ignore_errors: yes
+  when: has_nvidia
+
 # --- AMD ---
 - name: Install AMD drivers
   block:

@@ -1,0 +1,808 @@
+ lourens@lourens-vectorgp7612ugs ~/D/D/P/kubuntu-setup (main)> ansible-playbook setup.yml --ask-become-pass
+BECOME password:
+[WARNING]: No inventory was parsed, only implicit localhost is available
+[WARNING]: provided hosts list is empty, only localhost is available. Note that the implicit localhost does not match 'all'
+
+PLAY [Kubuntu PC Setup Playbook] ************************************************************************************************************************
+
+TASK [Gathering Facts] **********************************************************************************************************************************
+ok: [localhost]
+
+TASK [Ensure log directory exists] **********************************************************************************************************************
+ok: [localhost]
+
+TASK [Get dpkg architecture] ****************************************************************************************************************************
+ok: [localhost]
+
+TASK [Set dpkg architecture fact] ***********************************************************************************************************************
+ok: [localhost]
+
+TASK [Initialize log file] ******************************************************************************************************************************
+changed: [localhost]
+
+TASK [Log system information] ***************************************************************************************************************************
+changed: [localhost] => (item=Python Version  : 3.12.3)
+changed: [localhost] => (item=Ansible Version : 2.16.3)
+changed: [localhost] => (item=Total Memory    : 31795 MB)
+changed: [localhost] => (item=CPU Cores       : 14)
+changed: [localhost] => (item=Default IPv4    : 192.168.17.234)
+
+TASK [[PRE] Remove stale VirtualBox APT key (.asc format)] **********************************************************************************************
+ok: [localhost]
+
+TASK [[PRE] Remove stale VirtualBox repo entry (.asc-based)] ********************************************************************************************
+ok: [localhost]
+
+TASK [[PRE] Record initial installed packages] **********************************************************************************************************
+ok: [localhost]
+
+TASK [[LOG] Section header — Prerequisites] *************************************************************************************************************
+changed: [localhost]
+
+TASK [[PREREQ] Run prerequisite checks] *****************************************************************************************************************
+included: /home/lourens/Documents/Device_Setup/PC_Setup/kubuntu-setup/tasks/check_prerequisites.yml for localhost
+
+TASK [Check if system is Debian-based] ******************************************************************************************************************
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Check Python installation] ************************************************************************************************************************
+ok: [localhost]
+
+TASK [Log Python check] *********************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check apt availability] ***************************************************************************************************************************
+ok: [localhost]
+
+TASK [Log apt check] ************************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check internet connectivity] **********************************************************************************************************************
+ok: [localhost]
+
+TASK [Log internet check] *******************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check if curl is installed] ***********************************************************************************************************************
+ok: [localhost]
+
+TASK [Install curl if missing] **************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log curl installation] ****************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check if wget is installed] ***********************************************************************************************************************
+ok: [localhost]
+
+TASK [Install wget if missing] **************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log wget installation] ****************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check if git is installed] ************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install git if missing] ***************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log git installation] *****************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check if pciutils is installed] *******************************************************************************************************************
+ok: [localhost]
+
+TASK [Install pciutils if missing] **********************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log pciutils installation] ************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check if sudo is installed] ***********************************************************************************************************************
+ok: [localhost]
+
+TASK [Log sudo check] ***********************************************************************************************************************************
+changed: [localhost]
+
+TASK [Log prerequisites completion] *********************************************************************************************************************
+changed: [localhost]
+
+TASK [[LOG] Section header — Graphics] ******************************************************************************************************************
+changed: [localhost]
+
+TASK [[GPU] Install graphics drivers] *******************************************************************************************************************
+included: /home/lourens/Documents/Device_Setup/PC_Setup/kubuntu-setup/tasks/graphics.yml for localhost
+
+TASK [Install lspci utility] ****************************************************************************************************************************
+ok: [localhost]
+
+TASK [Detect NVIDIA graphics cards] *********************************************************************************************************************
+ok: [localhost]
+
+TASK [Detect AMD graphics cards] ************************************************************************************************************************
+ok: [localhost]
+
+TASK [Detect Intel graphics cards] **********************************************************************************************************************
+ok: [localhost]
+
+TASK [Log detected graphics cards] **********************************************************************************************************************
+changed: [localhost] => (item=Detected Graphics Cards:)
+changed: [localhost] => (item=  NVIDIA: 01:00.0 VGA compatible controller: NVIDIA Corporation GA104 [Geforce RTX 3070 Ti Laptop GPU] (rev a1))
+changed: [localhost] => (item=  AMD: None detected)
+changed: [localhost] => (item=  Intel: 00:02.0 VGA compatible controller: Intel Corporation Alder Lake-P GT2 [Iris Xe Graphics] (rev 0c))
+
+TASK [Display detected graphics cards] ******************************************************************************************************************
+ok: [localhost] => {
+    "msg": "========================================\nDETECTED GRAPHICS CARDS\n========================================\nNVIDIA: 01:00.0 VGA compatible controller: NVIDIA Corporation GA104 [Geforce RTX 3070 Ti Laptop GPU] (rev a1)\nAMD:    None detected\nIntel:  00:02.0 VGA compatible controller: Intel Corporation Alder Lake-P GT2 [Iris Xe Graphics] (rev 0c)\n========================================\n"
+}
+
+TASK [User confirmation for driver installation] ********************************************************************************************************
+[User confirmation for driver installation]
+
+Please verify the above graphics cards are correct.
+Press ENTER to continue or Ctrl+C then A to abort.
+:
+ok: [localhost]
+
+TASK [Log user confirmation] ****************************************************************************************************************************
+changed: [localhost]
+
+TASK [Set GPU presence facts] ***************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install NVIDIA driver packages] *******************************************************************************************************************
+ok: [localhost]
+
+TASK [Log NVIDIA install success] ***********************************************************************************************************************
+changed: [localhost]
+
+TASK [Backup GRUB config before NVIDIA parameter modification] ******************************************************************************************
+ok: [localhost]
+
+TASK [Ensure NVIDIA GRUB parameters are present] ********************************************************************************************************
+changed: [localhost]
+
+TASK [Update GRUB with NVIDIA kernel parameters] ********************************************************************************************************
+changed: [localhost]
+
+TASK [Log NVIDIA kernel parameters applied] *************************************************************************************************************
+changed: [localhost]
+
+TASK [Ensure Xorg configuration directory exists] *******************************************************************************************************
+ok: [localhost]
+
+TASK [Create Xorg NVIDIA display configuration] *********************************************************************************************************
+ok: [localhost]
+
+TASK [Ensure SDDM scripts directory exists] *************************************************************************************************************
+ok: [localhost]
+
+TASK [Check if SDDM Xsetup handles NVIDIA PRIME] ********************************************************************************************************
+ok: [localhost]
+
+TASK [Configure SDDM Xsetup for NVIDIA reverse PRIME] ***************************************************************************************************
+skipping: [localhost]
+
+TASK [Ensure SDDM configuration directory exists] *******************************************************************************************************
+ok: [localhost]
+
+TASK [Configure SDDM to use Xsetup script and X11 greeter] **********************************************************************************************
+ok: [localhost]
+
+TASK [Ensure KDE Plasma environment directory exists] ***************************************************************************************************
+ok: [localhost]
+
+TASK [Configure KWin Wayland for multi-GPU output] ******************************************************************************************************
+changed: [localhost]
+
+TASK [Log display configuration] ************************************************************************************************************************
+changed: [localhost]
+
+TASK [Create nvidia-drm modprobe configuration] *********************************************************************************************************
+ok: [localhost]
+
+TASK [Add NVIDIA modules to initramfs for early KMS] ****************************************************************************************************
+ok: [localhost] => (item=nvidia)
+ok: [localhost] => (item=nvidia_modeset)
+ok: [localhost] => (item=nvidia_uvm)
+ok: [localhost] => (item=nvidia_drm)
+
+TASK [Query current PRIME GPU profile] ******************************************************************************************************************
+ok: [localhost]
+
+TASK [Set NVIDIA PRIME to performance mode (nvidia)] ****************************************************************************************************
+skipping: [localhost]
+
+TASK [Log NVIDIA PRIME mode set] ************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Enable NVIDIA systemd power management services] **************************************************************************************************
+ok: [localhost] => (item=nvidia-suspend.service)
+ok: [localhost] => (item=nvidia-hibernate.service)
+ok: [localhost] => (item=nvidia-resume.service)
+
+TASK [Check Secure Boot state] **************************************************************************************************************************
+ok: [localhost]
+
+TASK [Check if DKMS MOK key exists] *********************************************************************************************************************
+skipping: [localhost]
+
+TASK [Check if MOK key is already enrolled] *************************************************************************************************************
+skipping: [localhost]
+
+TASK [Generate one-time MOK enrollment password] ********************************************************************************************************
+skipping: [localhost]
+
+TASK [Import MOK key with generated password] ***********************************************************************************************************
+skipping: [localhost]
+
+TASK [Display MOK enrollment instructions] **************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log MOK enrollment] *******************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Display MUX switch information for hybrid GPU laptops] ********************************************************************************************
+ok: [localhost] => {
+    "msg": "========================================\nℹ  GPU MUX SWITCH INFORMATION\n========================================\nYour laptop may have a hardware MUX switch in BIOS:\n  Advanced → Optimus Configuration\n\nAvailable modes:\n  • Optimus (default): Hybrid graphics — iGPU drives laptop panel,\n    dGPU drives HDMI/DP. Best battery life. This playbook configures\n    PRIME to use the dGPU as primary renderer with reverse PRIME\n    for the laptop panel.\n  • dGPU Only: All displays route through NVIDIA. Simplest multi-\n    monitor setup, but worse battery life and no iGPU video decode.\n\nThe MUX switch cannot be toggled from Linux — it requires a BIOS change.\n========================================\n"
+}
+
+TASK [Install AMD AMDGPU drivers] ***********************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log AMD install success] **************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Install Intel graphics drivers] *******************************************************************************************************************
+ok: [localhost]
+
+TASK [Log Intel install success] ************************************************************************************************************************
+changed: [localhost]
+
+TASK [Purge NVIDIA drivers if no NVIDIA GPU exists] *****************************************************************************************************
+skipping: [localhost]
+
+TASK [Purge AMD drivers if no AMD GPU exists] ***********************************************************************************************************
+ok: [localhost]
+
+TASK [Purge Intel drivers if no Intel GPU exists] *******************************************************************************************************
+skipping: [localhost]
+
+TASK [Blacklist amdgpu kernel module if no AMD GPU exists] **********************************************************************************************
+ok: [localhost]
+
+TASK [Remove amdgpu blacklist if AMD GPU exists] ********************************************************************************************************
+skipping: [localhost]
+
+TASK [Update initramfs after GPU configuration changes] *************************************************************************************************
+skipping: [localhost]
+
+TASK [Verify graphics drivers] **************************************************************************************************************************
+ok: [localhost]
+
+TASK [Log driver verification] **************************************************************************************************************************
+changed: [localhost]
+
+TASK [Set reboot required flag for NVIDIA hardware] *****************************************************************************************************
+ok: [localhost]
+
+TASK [[LOG] Section header — System] ********************************************************************************************************************
+changed: [localhost]
+
+TASK [[SYS] Install system and utility packages] ********************************************************************************************************
+included: /home/lourens/Documents/Device_Setup/PC_Setup/kubuntu-setup/tasks/system.yml for localhost
+
+TASK [Log system utilities check] ***********************************************************************************************************************
+changed: [localhost]
+
+TASK [Check compression utilities] **********************************************************************************************************************
+ok: [localhost] => (item=which zip)
+ok: [localhost] => (item=which gzip)
+ok: [localhost] => (item=which tar)
+
+TASK [Install compression utilities] ********************************************************************************************************************
+ok: [localhost]
+
+TASK [Log compression utilities installation] ***********************************************************************************************************
+changed: [localhost]
+
+TASK [Check for text editor] ****************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install text editor (nano)] ***********************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log nano installation] ****************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check if htop is installed] ***********************************************************************************************************************
+ok: [localhost]
+
+TASK [Check if btop is installed] ***********************************************************************************************************************
+ok: [localhost]
+
+TASK [Check if gtop is installed] ***********************************************************************************************************************
+ok: [localhost]
+
+TASK [Install system monitoring tools] ******************************************************************************************************************
+ok: [localhost]
+
+TASK [Log htop, btop & nvtop installation] **************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for VirtualBox] *****************************************************************************************************************************
+ok: [localhost]
+
+TASK [Remove old VirtualBox key format (asc) if present] ************************************************************************************************
+ok: [localhost]
+
+TASK [Remove old VirtualBox repository entry (asc-based) if present] ************************************************************************************
+ok: [localhost]
+
+TASK [Download and dearmor VirtualBox repository key] ***************************************************************************************************
+ok: [localhost]
+
+TASK [Add VirtualBox repository] ************************************************************************************************************************
+changed: [localhost]
+
+TASK [Install VirtualBox] *******************************************************************************************************************************
+ok: [localhost]
+
+TASK [Log VirtualBox installation] **********************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for Virt-Manager] ***************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install virtualization packages] ******************************************************************************************************************
+ok: [localhost]
+
+TASK [Enable and start libvirtd service] ****************************************************************************************************************
+changed: [localhost]
+
+TASK [Log Virt-Manager installation] ********************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for build essentials] ***********************************************************************************************************************
+ok: [localhost]
+
+TASK [Install build essentials] *************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log build essentials installation] ****************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for Fish shell] *****************************************************************************************************************************
+ok: [localhost]
+
+TASK [Add Fish PPA for the latest version] **************************************************************************************************************
+ok: [localhost]
+
+TASK [Install Fish shell] *******************************************************************************************************************************
+ok: [localhost]
+
+TASK [Ensure Fish is listed as a valid login shell] *****************************************************************************************************
+ok: [localhost]
+
+TASK [Change default shell to Fish for active user] *****************************************************************************************************
+ok: [localhost]
+
+TASK [Log Fish shell installation] **********************************************************************************************************************
+changed: [localhost]
+
+TASK [[LOG] Section header — Programming] ***************************************************************************************************************
+changed: [localhost]
+
+TASK [[DEV] Install programming and development tools] **************************************************************************************************
+included: /home/lourens/Documents/Device_Setup/PC_Setup/kubuntu-setup/tasks/programming.yml for localhost
+
+TASK [Check for Git] ************************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install Git] **************************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log Git installation] *****************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for NVM] ************************************************************************************************************************************
+ok: [localhost]
+
+TASK [Ensure curl is installed for NVM script] **********************************************************************************************************
+ok: [localhost]
+
+TASK [Download and install NVM] *************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install Node.js v22] ******************************************************************************************************************************
+changed: [localhost]
+
+TASK [Set default Node version] *************************************************************************************************************************
+ok: [localhost]
+
+TASK [Log Node.js installation] *************************************************************************************************************************
+changed: [localhost]
+
+TASK [Install gtop via npm] *****************************************************************************************************************************
+ok: [localhost]
+
+TASK [Log gtop installation] ****************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for VS Code] ********************************************************************************************************************************
+ok: [localhost]
+
+TASK [Add Microsoft GPG key] ****************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Add VS Code repository] ***************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Install VS Code] **********************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log VS Code installation] *************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for Antigravity] ****************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install Antigravity dependencies] *****************************************************************************************************************
+ok: [localhost]
+
+TASK [Clone Antigravity repository] *********************************************************************************************************************
+skipping: [localhost]
+
+TASK [Install Antigravity Python dependencies] **********************************************************************************************************
+ok: [localhost]
+
+TASK [Make Antigravity executable] **********************************************************************************************************************
+fatal: [localhost]: FAILED! => {"changed": false, "msg": "file (/opt/antigravity/antigravity.py) is absent, cannot continue", "path": "/opt/antigravity/antigravity.py", "state": "absent"}
+...ignoring
+
+TASK [Create Antigravity symlink] ***********************************************************************************************************************
+[WARNING]: Cannot set fs attributes on a non-existent symlink target. follow should be set to False to avoid this.
+ok: [localhost]
+
+TASK [Log Antigravity installation] *********************************************************************************************************************
+changed: [localhost]
+
+TASK [Preconfigure Wireshark to allow non-superusers to capture packets] ********************************************************************************
+ok: [localhost]
+
+TASK [Install Telecommunications Engineering Suite (APT)] ***********************************************************************************************
+ok: [localhost]
+
+TASK [Log Telecommunications Engineering Suite installation] ********************************************************************************************
+changed: [localhost]
+
+TASK [[LOG] Section header — Media] *********************************************************************************************************************
+changed: [localhost]
+
+TASK [[MEDIA] Install media and communication apps] *****************************************************************************************************
+included: /home/lourens/Documents/Device_Setup/PC_Setup/kubuntu-setup/tasks/media.yml for localhost
+
+TASK [Check for Discord] ********************************************************************************************************************************
+ok: [localhost]
+
+TASK [Download Discord] *********************************************************************************************************************************
+changed: [localhost]
+
+TASK [Install Discord package] **************************************************************************************************************************
+ok: [localhost]
+
+TASK [Clean up Discord installer] ***********************************************************************************************************************
+changed: [localhost]
+
+TASK [Log Discord installation] *************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for OBS Studio] *****************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install OBS Studio] *******************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log OBS Studio installation] **********************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for Spotify] ********************************************************************************************************************************
+ok: [localhost]
+
+TASK [Download Spotify repository keyring] **************************************************************************************************************
+ok: [localhost]
+
+TASK [Add Spotify repository] ***************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install Spotify] **********************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log Spotify installation] *************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for VLC] ************************************************************************************************************************************
+ok: [localhost]
+
+TASK [Check for FFmpeg] *********************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install media utilities] **************************************************************************************************************************
+ok: [localhost]
+
+TASK [Log media utilities installation] *****************************************************************************************************************
+changed: [localhost]
+
+TASK [Log WinApps manual setup instructions] ************************************************************************************************************
+changed: [localhost]
+
+TASK [[LOG] Section header — Productivity] **************************************************************************************************************
+changed: [localhost]
+
+TASK [[PROD] Install productivity and office apps] ******************************************************************************************************
+included: /home/lourens/Documents/Device_Setup/PC_Setup/kubuntu-setup/tasks/productivity.yml for localhost
+
+TASK [Check for Obsidian] *******************************************************************************************************************************
+ok: [localhost]
+
+TASK [Get latest Obsidian release info] *****************************************************************************************************************
+ok: [localhost]
+
+TASK [Download Obsidian] ********************************************************************************************************************************
+changed: [localhost]
+
+TASK [Extract Obsidian AppImage] ************************************************************************************************************************
+changed: [localhost]
+
+TASK [Create Obsidian symlink] **************************************************************************************************************************
+ok: [localhost]
+
+TASK [Create Obsidian Desktop Entry] ********************************************************************************************************************
+ok: [localhost]
+
+TASK [Clean up installer] *******************************************************************************************************************************
+changed: [localhost]
+
+TASK [Log Obsidian installation] ************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for Zotero] *********************************************************************************************************************************
+ok: [localhost]
+
+TASK [Fetch robust list of Zotero release tags from GitHub] *********************************************************************************************
+skipping: [localhost]
+
+TASK [Parse available Zotero tags] **********************************************************************************************************************
+skipping: [localhost]
+
+TASK [Extract unique major versions (e.g., 6, 7, 8)] ****************************************************************************************************
+skipping: [localhost]
+
+TASK [Prompt user to select a major version] ************************************************************************************************************
+skipping: [localhost]
+
+TASK [Resolve major version] ****************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Filter minor versions for selected major version] *************************************************************************************************
+skipping: [localhost]
+
+TASK [Limit minor versions to top 15] *******************************************************************************************************************
+skipping: [localhost]
+
+TASK [Prompt user to select a minor version] ************************************************************************************************************
+skipping: [localhost]
+
+TASK [Resolve minor version] ****************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Set Zotero download URL] **************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Download and extract Zotero locally] **************************************************************************************************************
+skipping: [localhost]
+
+TASK [Determine extracted Zotero directory] *************************************************************************************************************
+skipping: [localhost]
+
+TASK [Create symlink to Zotero executable] **************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log Zotero installation] **************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for Google Chrome] **************************************************************************************************************************
+ok: [localhost]
+
+TASK [Download Chrome GPG key] **************************************************************************************************************************
+ok: [localhost]
+
+TASK [Add Chrome repository] ****************************************************************************************************************************
+ok: [localhost]
+
+TASK [Install Google Chrome] ****************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Log Chrome installation] **************************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for WinApps] ********************************************************************************************************************************
+fatal: [localhost]: FAILED! => {"changed": false, "cmd": ["which", "winapps"], "delta": "0:00:00.002448", "end": "2026-03-22 14:48:10.087726", "msg": "non-zero return code", "rc": 1, "start": "2026-03-22 14:48:10.085278", "stderr": "", "stderr_lines": [], "stdout": "", "stdout_lines": []}
+...ignoring
+
+TASK [Check if git is available] ************************************************************************************************************************
+ok: [localhost]
+
+TASK [Clone WinApps repository] *************************************************************************************************************************
+ok: [localhost]
+
+TASK [Skip interactive WinApps installer (requires manual setup)] ***************************************************************************************
+skipping: [localhost]
+
+TASK [Log WinApps installation] *************************************************************************************************************************
+changed: [localhost]
+
+TASK [Log WinApps manual instructions] ******************************************************************************************************************
+changed: [localhost]
+
+TASK [Install Academic Writing and Reading Suite (APT)] *************************************************************************************************
+ok: [localhost]
+
+TASK [Log Academic Suite installation] ******************************************************************************************************************
+changed: [localhost]
+
+TASK [Check for SNAP availability] **********************************************************************************************************************
+ok: [localhost]
+
+TASK [Install Advanced Telecommunications Productivity Suite (Snap)] ************************************************************************************
+ok: [localhost] => (item=superproductivity)
+ok: [localhost] => (item=drawio)
+
+TASK [Log Snap Productivity Suite installation] *********************************************************************************************************
+changed: [localhost]
+
+TASK [[LOG] Section header — Hibernation] ***************************************************************************************************************
+changed: [localhost]
+
+TASK [[SYS] Configure System Hibernation] ***************************************************************************************************************
+included: /home/lourens/Documents/Device_Setup/PC_Setup/kubuntu-setup/tasks/hibernation.yml for localhost
+
+TASK [Calculate Dynamic Swap Configurations] ************************************************************************************************************
+ok: [localhost]
+
+TASK [Ensure OS is Debian or Ubuntu based] **************************************************************************************************************
+skipping: [localhost]
+
+TASK [Display current system parameters] ****************************************************************************************************************
+ok: [localhost] => {
+    "msg": "Total RAM: 31795 MB. Existing Swap Total: 34815 MB. Required Swap for Hibernation: 33843 MB (~34 GB)."
+}
+
+TASK [Prompt to resize swap] ****************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Disable current swap] *****************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Create larger swapfile via dd (this takes up to a minute)] ****************************************************************************************
+skipping: [localhost]
+
+TASK [Set correct permissions on swapfile] **************************************************************************************************************
+skipping: [localhost]
+
+TASK [Make swap] ****************************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Enable new swap] **********************************************************************************************************************************
+skipping: [localhost]
+
+TASK [Add swap to fstab (if not already there)] *********************************************************************************************************
+skipping: [localhost]
+
+TASK [Get partition UUID hosting the swapfile] **********************************************************************************************************
+ok: [localhost]
+
+TASK [Get physical swapfile offset] *********************************************************************************************************************
+ok: [localhost]
+
+TASK [Assign UUID and Offset facts] *********************************************************************************************************************
+ok: [localhost]
+
+TASK [Display Hibernation Configuration] ****************************************************************************************************************
+ok: [localhost] => {
+    "msg": "Identified UUID: 2eaaa259-9a45-4f56-a04e-da0767f56f54 Identified Offset: 428197888 These are the exact properties required for your kernel to resume from hibernation safely."
+}
+
+TASK [Prompt to apply config] ***************************************************************************************************************************
+[Prompt to apply config]
+
+Do you want to apply these variables to GRUB and Initramfs to permanently enable hibernation? (y/N):
+ok: [localhost]
+
+TASK [Configure initramfs resume parameter] *************************************************************************************************************
+ok: [localhost]
+
+TASK [Backup GRUB config] *******************************************************************************************************************************
+ok: [localhost]
+
+TASK [Ensure hibernation resume params are in GRUB] *****************************************************************************************************
+changed: [localhost]
+
+TASK [Ensure modern polkit rules directory exists] ******************************************************************************************************
+ok: [localhost]
+
+TASK [Enable UI Hibernation Support (Modern JavaScript Rules)] ******************************************************************************************
+ok: [localhost]
+
+TASK [Ensure system-wide fish functions directory exists] ***********************************************************************************************
+ok: [localhost]
+
+TASK [Create system-wide 'hibernate' alias for Fish shell] **********************************************************************************************
+ok: [localhost]
+
+TASK [Update initramfs image] ***************************************************************************************************************************
+changed: [localhost]
+
+TASK [Update GRUB] **************************************************************************************************************************************
+changed: [localhost]
+
+TASK [Verify hibernation resume file was written correctly] *********************************************************************************************
+ok: [localhost]
+
+TASK [Verify GRUB resume parameters were applied] *******************************************************************************************************
+fatal: [localhost]: FAILED! => {"changed": false, "cmd": "grep -i 'resume=' /etc/default/grub", "delta": "0:00:00.003074", "end": "2026-03-22 14:48:34.125024", "msg": "non-zero return code", "rc": 1, "start": "2026-03-22 14:48:34.121950", "stderr": "", "stderr_lines": [], "stdout": "", "stdout_lines": []}
+...ignoring
+
+TASK [Log hibernation verification results] *************************************************************************************************************
+changed: [localhost] => (item=Hibernation configuration verification:)
+changed: [localhost] => (item=  Resume file: OK - RESUME=UUID=2eaaa259-9a45-4f56-a04e-da0767f56f54)
+changed: [localhost] => (item=  GRUB resume: MISSING - resume params may not have been applied)
+
+TASK [Set reboot required flag for hibernation configuration] *******************************************************************************************
+ok: [localhost]
+
+TASK [[POST] Record final installed packages] ***********************************************************************************************************
+ok: [localhost]
+
+TASK [[POST] Calculate package delta] *******************************************************************************************************************
+ok: [localhost]
+
+TASK [[POST] Write package delta to log] ****************************************************************************************************************
+changed: [localhost]
+
+TASK [[POST] Finalize log with completion timestamp] ****************************************************************************************************
+changed: [localhost]
+
+TASK [[POST] Log reboot requirement] ********************************************************************************************************************
+changed: [localhost]
+
+TASK [[POST] Prompt for system reboot if required] ******************************************************************************************************
+[[POST] Prompt for system reboot if required]
+
+========================================
+⚠  SYSTEM REBOOT REQUIRED
+========================================
+The following changes need a reboot to activate:
+  - NVIDIA GPU drivers (kernel module must be loaded)
+  - NVIDIA GRUB kernel parameters (DRM modeset, power management)
+  - Hibernation settings (GRUB resume params + initramfs)
+
+A reboot will be scheduled 1 minute from now if you say yes.
+Do you want to schedule the reboot? (y/N)
+:
+ok: [localhost]
+
+TASK [[POST] Schedule system reboot in 1 minute] ********************************************************************************************************
+changed: [localhost]
+
+TASK [[POST] Display log file location] *****************************************************************************************************************
+ok: [localhost] => {
+    "msg": "Setup complete! Full log available at: /home/lourens/Documents/Ansible_Installation_Log/kubuntu_setup_20260322T144714.log"
+}
+
+PLAY RECAP **********************************************************************************************************************************************
+localhost                  : ok=197  changed=70   unreachable=0    failed=0    skipped=51   rescued=0    ignored=3

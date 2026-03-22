@@ -172,12 +172,16 @@
         mode: '0755'
 
     - name: Detect NVIDIA GPU PCI BusID
-      shell: lspci | grep -i nvidia | grep -iE "vga|display|3d" | head -1 | awk '{print $1}' | awk -F'[:\.]' '{printf "PCI:%d:%d:%d\n", strtonum("0x"$1), strtonum("0x"$2), strtonum("0x"$3)}'
+      shell: |
+        ADDR=$(lspci | grep -i nvidia | grep -iE "vga|display|3d" | head -1 | awk '{print $1}')
+        printf "PCI:%d:%d:%d\n" "0x${ADDR%%:*}" "0x$(echo "$ADDR" | cut -d: -f2 | cut -d. -f1)" "0x${ADDR##*.}"
       register: nvidia_busid
       changed_when: false
 
     - name: Detect Intel GPU PCI BusID
-      shell: lspci | grep -i intel | grep -iE "vga|display" | head -1 | awk '{print $1}' | awk -F'[:\.]' '{printf "PCI:%d:%d:%d\n", strtonum("0x"$1), strtonum("0x"$2), strtonum("0x"$3)}'
+      shell: |
+        ADDR=$(lspci | grep -i intel | grep -iE "vga|display" | head -1 | awk '{print $1}')
+        printf "PCI:%d:%d:%d\n" "0x${ADDR%%:*}" "0x$(echo "$ADDR" | cut -d: -f2 | cut -d. -f1)" "0x${ADDR##*.}"
       register: intel_busid
       changed_when: false
 

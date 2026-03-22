@@ -244,11 +244,6 @@
         state: directory
         mode: '0755'
 
-    - name: Detect DRM card devices for KWin multi-GPU support
-      shell: ls -1 /dev/dri/card* 2>/dev/null | tr '\n' ':' | sed 's/:$//'
-      register: drm_devices
-      changed_when: false
-
     - name: Configure KWin Wayland for multi-GPU output
       copy:
         dest: /etc/xdg/plasma-workspace/env/10-nvidia-multi-gpu.sh
@@ -257,11 +252,13 @@
           # Tell KWin Wayland to enumerate all DRM devices (both NVIDIA and iGPU)
           # so the laptop panel (wired to iGPU) is available alongside external
           # monitors (wired to NVIDIA dGPU).
-          export KWIN_DRM_DEVICES="{{ drm_devices.stdout }}"
+          # Device paths are detected dynamically at login — not hardcoded — because
+          # /dev/dri/card* numbering changes when kernel modules are blacklisted.
+          KWIN_DRM_DEVICES=$(ls -1 /dev/dri/card* 2>/dev/null | tr '\n' ':' | sed 's/:$//')
+          export KWIN_DRM_DEVICES
         owner: root
         group: root
         mode: '0755'
-      when: drm_devices.stdout | length > 0
 
     - name: Log display configuration
       lineinfile:

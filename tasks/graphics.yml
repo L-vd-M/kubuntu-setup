@@ -171,14 +171,52 @@
         state: directory
         mode: '0755'
 
-    - name: Create Xorg NVIDIA display configuration
+    - name: Detect NVIDIA GPU PCI BusID
+      shell: lspci | grep -i nvidia | grep -iE "vga|display|3d" | head -1 | awk '{print $1}' | awk -F'[:\.]' '{printf "PCI:%d:%d:%d\n", strtonum("0x"$1), strtonum("0x"$2), strtonum("0x"$3)}'
+      register: nvidia_busid
+      changed_when: false
+
+    - name: Detect Intel GPU PCI BusID
+      shell: lspci | grep -i intel | grep -iE "vga|display" | head -1 | awk '{print $1}' | awk -F'[:\.]' '{printf "PCI:%d:%d:%d\n", strtonum("0x"$1), strtonum("0x"$2), strtonum("0x"$3)}'
+      register: intel_busid
+      changed_when: false
+
+    - name: Create Xorg multi-GPU display configuration
+      # Both GPUs must be defined explicitly for reverse PRIME to work.
+      # Without the Intel modesetting device, X only sees NVIDIA and the
+      # laptop panel (wired to iGPU) is invisible — xrandr shows 1 provider.
+      # AllowNVIDIAGPUScreens lets X create screens for both GPUs.
       copy:
         dest: /etc/X11/xorg.conf.d/20-nvidia.conf
         content: |
+          Section "ServerLayout"
+              Identifier     "layout"
+              Screen 0       "nvidia" 0 0
+              Inactive       "intel"
+              Option         "AllowNVIDIAGPUScreens"
+          EndSection
+
           Section "Device"
-              Identifier     "NVIDIA Card"
+              Identifier     "nvidia"
               Driver         "nvidia"
+              BusID          "{{ nvidia_busid.stdout | trim }}"
               Option         "AllowEmptyInitialConfiguration"
+          EndSection
+
+          Section "Screen"
+              Identifier     "nvidia"
+              Device         "nvidia"
+          EndSection
+
+          Section "Device"
+              Identifier     "intel"
+              Driver         "modesetting"
+              BusID          "{{ intel_busid.stdout | trim }}"
+          EndSection
+
+          Section "Screen"
+              Identifier     "intel"
+              Device         "intel"
           EndSection
         owner: root
         group: root

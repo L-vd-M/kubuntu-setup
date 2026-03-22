@@ -79,42 +79,91 @@
     # ------------------------------------------
     # SECTION 1: CHECK PREREQUISITES
     # ------------------------------------------
+    - name: "[LOG] Section header — Prerequisites"
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "\n========== [1/7] PREREQUISITES =========="
+        state: present
+      become: false
+
     - name: "[PREREQ] Run prerequisite checks"
       include_tasks: tasks/check_prerequisites.yml
 
     # ------------------------------------------
     # SECTION 2: GRAPHICS DRIVER SETUP
     # ------------------------------------------
+    - name: "[LOG] Section header — Graphics"
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "\n========== [2/7] GRAPHICS DRIVERS =========="
+        state: present
+      become: false
+
     - name: "[GPU] Install graphics drivers"
       include_tasks: tasks/graphics.yml
 
     # ------------------------------------------
     # SECTION 3: SYSTEM UTILITIES
     # ------------------------------------------
+    - name: "[LOG] Section header — System"
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "\n========== [3/7] SYSTEM UTILITIES =========="
+        state: present
+      become: false
+
     - name: "[SYS] Install system and utility packages"
       include_tasks: tasks/system.yml
 
     # ------------------------------------------
     # SECTION 4: PROGRAMMING TOOLS
     # ------------------------------------------
+    - name: "[LOG] Section header — Programming"
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "\n========== [4/7] PROGRAMMING TOOLS =========="
+        state: present
+      become: false
+
     - name: "[DEV] Install programming and development tools"
       include_tasks: tasks/programming.yml
 
     # ------------------------------------------
     # SECTION 5: MEDIA & COMMUNICATION
     # ------------------------------------------
+    - name: "[LOG] Section header — Media"
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "\n========== [5/7] MEDIA & COMMUNICATION =========="
+        state: present
+      become: false
+
     - name: "[MEDIA] Install media and communication apps"
       include_tasks: tasks/media.yml
 
     # ------------------------------------------
     # SECTION 6: PRODUCTIVITY & OFFICE
     # ------------------------------------------
+    - name: "[LOG] Section header — Productivity"
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "\n========== [6/7] PRODUCTIVITY & OFFICE =========="
+        state: present
+      become: false
+
     - name: "[PROD] Install productivity and office apps"
       include_tasks: tasks/productivity.yml
 
     # ------------------------------------------
     # SECTION 7: SYSTEM HIBERNATION
     # ------------------------------------------
+    - name: "[LOG] Section header — Hibernation"
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "\n========== [7/7] HIBERNATION =========="
+        state: present
+      become: false
+
     - name: "[SYS] Configure System Hibernation"
       include_tasks: tasks/hibernation.yml
 

@@ -100,6 +100,18 @@
 
     - name: Install Oracle VirtualBox
       block:
+        - name: Remove old VirtualBox key format (asc) if present
+          file:
+            path: /etc/apt/keyrings/oracle_vbox_2016.asc
+            state: absent
+          ignore_errors: yes
+
+        - name: Remove old VirtualBox repository entry (asc-based) if present
+          apt_repository:
+            repo: "deb [arch={{ dpkg_arch }} signed-by=/etc/apt/keyrings/oracle_vbox_2016.asc] https://download.virtualbox.org/virtualbox/debian {{ ansible_distribution_release }} contrib"
+            state: absent
+          ignore_errors: yes
+
         - name: Download and dearmor VirtualBox repository key
           shell: curl -fsSL https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor -o /etc/apt/keyrings/oracle_vbox_2016.gpg
           args:
@@ -229,6 +241,7 @@
     - name: Log system utilities error
       lineinfile:
         path: "{{ log_file }}"
-        line: "✗ Error during system utilities installation - continuing with next section"
+        line: "✗ Error during system utilities installation — {{ ansible_failed_result.msg | default('unknown error') | truncate(200) }}"
         state: present
       become: no
+      ignore_errors: yes

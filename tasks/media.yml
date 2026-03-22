@@ -142,6 +142,6 @@
     - name: Log media tools error
       lineinfile:
         path: "{{ log_file }}"
-        line: "✗ Error during media tools installation"
+        line: "✗ Error during media tools installation — {{ ansible_failed_result.msg | default('unknown error') | truncate(200) }}"
         state: present
       become: no

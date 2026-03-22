@@ -199,7 +199,7 @@
       ignore_errors: yes
 
     - name: Verify GRUB resume parameters were applied
-      shell: "grep -i 'resume=UUID' /etc/default/grub"
+      shell: "grep -i 'resume=' /etc/default/grub"
       register: grub_resume_verify
       changed_when: false
       ignore_errors: yes

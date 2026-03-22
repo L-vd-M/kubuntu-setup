@@ -300,6 +300,6 @@
     - name: Log productivity tools error
       lineinfile:
         path: "{{ log_file }}"
-        line: "✗ Error during productivity tools installation - continuing with next section"
+        line: "✗ Error during productivity tools installation — {{ ansible_failed_result.msg | default('unknown error') | truncate(200) }}"
         state: present
       become: no

@@ -212,6 +212,7 @@
     - name: Log programming tools error
       lineinfile:
         path: "{{ log_file }}"
-        line: "✗ Error during programming tools installation - continuing with next section"
+        line: "✗ Error during programming tools installation — {{ ansible_failed_result.msg | default('unknown error') | truncate(200) }}"
         state: present
       become: no
+      ignore_errors: yes

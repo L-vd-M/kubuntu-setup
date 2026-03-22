@@ -215,10 +215,58 @@
         mode: '0755'
       when: sddm_xsetup_check.rc != 0
 
+    # Ensure SDDM is configured to actually run the Xsetup script.
+    # Without this, SDDM may ignore the script entirely.
+    - name: Ensure SDDM configuration directory exists
+      file:
+        path: /etc/sddm.conf.d
+        state: directory
+        mode: '0755'
+
+    - name: Configure SDDM to use Xsetup script and X11 greeter
+      copy:
+        dest: /etc/sddm.conf.d/10-nvidia-prime.conf
+        content: |
+          [X11]
+          DisplayCommand=/usr/share/sddm/scripts/Xsetup
+        owner: root
+        group: root
+        mode: '0644'
+
+    # KDE Plasma 6 (Ubuntu 24.04+) defaults to Wayland. Under Wayland, the X11
+    # Xsetup script doesn't apply — KWin's DRM backend handles GPU enumeration
+    # directly. On hybrid laptops, KWin may only initialise the primary GPU (NVIDIA)
+    # and miss the iGPU's eDP output (laptop panel), leaving it stuck on the boot
+    # console. This environment file tells KWin to enumerate all DRM devices.
+    - name: Ensure KDE Plasma environment directory exists
+      file:
+        path: /etc/xdg/plasma-workspace/env
+        state: directory
+        mode: '0755'
+
+    - name: Detect DRM card devices for KWin multi-GPU support
+      shell: ls -1 /dev/dri/card* 2>/dev/null | tr '\n' ':' | sed 's/:$//'
+      register: drm_devices
+      changed_when: false
+
+    - name: Configure KWin Wayland for multi-GPU output
+      copy:
+        dest: /etc/xdg/plasma-workspace/env/10-nvidia-multi-gpu.sh
+        content: |
+          #!/bin/sh
+          # Tell KWin Wayland to enumerate all DRM devices (both NVIDIA and iGPU)
+          # so the laptop panel (wired to iGPU) is available alongside external
+          # monitors (wired to NVIDIA dGPU).
+          export KWIN_DRM_DEVICES="{{ drm_devices.stdout }}"
+        owner: root
+        group: root
+        mode: '0755'
+      when: drm_devices.stdout | length > 0
+
     - name: Log display configuration
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ NVIDIA display configuration applied (Xorg + SDDM reverse PRIME)"
+        line: "✓ NVIDIA display configuration applied (Xorg + SDDM + KWin multi-GPU)"
         state: present
       become: no
   become: yes
@@ -520,6 +568,31 @@
   ignore_errors: yes
 
 # ============================================
+# BLACKLIST UNUSED GPU KERNEL MODULES
+# ============================================
+# The kernel auto-loads GPU modules (e.g. amdgpu) even when the hardware is absent.
+# These phantom modules create DRM device nodes that can confuse KWin's multi-GPU
+# enumeration, causing displays to be assigned to the wrong GPU.
+
+- name: Blacklist amdgpu kernel module if no AMD GPU exists
+  copy:
+    dest: /etc/modprobe.d/blacklist-amdgpu.conf
+    content: "blacklist amdgpu\n"
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  register: amdgpu_blacklist
+  when: not has_amd
+
+- name: Remove amdgpu blacklist if AMD GPU exists
+  file:
+    path: /etc/modprobe.d/blacklist-amdgpu.conf
+    state: absent
+  become: yes
+  when: has_amd
+
+# ============================================
 # INITRAMFS UPDATE (CONDITIONAL)
 # ============================================
 # Only rebuild initramfs if GPU-related configuration actually changed.
@@ -530,7 +603,8 @@
   when: >
     (nvidia_modprobe_config is defined and nvidia_modprobe_config.changed) or
     (nvidia_initramfs_modules is defined and nvidia_initramfs_modules.changed) or
-    (nvidia_install is defined and nvidia_install.changed | default(false))
+    (nvidia_install is defined and nvidia_install.changed | default(false)) or
+    (amdgpu_blacklist is defined and amdgpu_blacklist.changed)
 
 # ============================================
 # DRIVER VERIFICATION

@@ -69,6 +69,26 @@
             state: present
           become: no
 
+    - name: Install gtop system monitor via npm
+      block:
+        - name: Install gtop via npm
+          shell: |
+            . {{ host_user_home }}/.nvm/nvm.sh &&
+            npm install -g gtop
+          args:
+            executable: /bin/bash
+          register: gtop_install
+          changed_when: "'added' in gtop_install.stdout"
+          ignore_errors: yes
+          become: no
+
+        - name: Log gtop installation
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ System monitor (gtop) - Status: {{ 'Installed' if gtop_install.changed | default(false) else 'Already installed or skipped' }}"
+            state: present
+          become: no
+
     - name: Check for VS Code
       command: which code
       register: vscode_check
@@ -134,11 +154,11 @@
           ignore_errors: yes
 
         - name: Install Antigravity Python dependencies
-          pip:
+          apt:
             name:
-              - PyQt5
-              - pynput
-            executable: pip3
+              - python3-pyqt5
+              - python3-pynput
+            state: present
           ignore_errors: yes
           register: antigravity_pip
 
@@ -162,42 +182,6 @@
             line: "✓ Antigravity desktop launcher - Status: Installed"
             state: present
           become: no
-
-    - name: Check for development utilities
-      block:
-        - name: Check curl
-          command: which curl
-          register: curl_check
-          ignore_errors: yes
-          changed_when: false
-
-        - name: Check wget
-          command: which wget
-          register: wget_check
-          ignore_errors: yes
-          changed_when: false
-
-        - name: Check vim
-          command: which vim
-          register: vim_check
-          ignore_errors: yes
-          changed_when: false
-
-    - name: Install additional development tools
-      apt:
-        name:
-          - curl
-          - wget
-          - vim
-        state: present
-      register: dev_tools_install
-
-    - name: Log development tools installation
-      lineinfile:
-        path: "{{ log_file }}"
-        line: "{% if dev_tools_install.failed | default(false) %}✗ Development tools (curl, wget, vim) - Status: Failed{% else %}✓ Development tools (curl, wget, vim) - Status: {{ dev_tools_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
-        state: present
-      become: no
 
     - name: Preconfigure Wireshark to allow non-superusers to capture packets
       debconf:

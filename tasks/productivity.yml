@@ -34,6 +34,7 @@
             cd /tmp
             chmod +x Obsidian-latest.AppImage
             ./Obsidian-latest.AppImage --appimage-extract
+            rm -rf /opt/obsidian
             mv squashfs-root /opt/obsidian
           when: obsidian_download.changed | default(false)
           ignore_errors: yes
@@ -144,7 +145,7 @@
 
             - name: Set Zotero download URL
               set_fact:
-                zotero_url: "https://www.zotero.org/download/client/dl?channel=release&platform=linux-x86_64&version={{ target_zotero_version }}"
+                zotero_url: "https://www.zotero.org/download/client/dl?channel=release&platform=linux-{{ 'x86_64' if dpkg_arch == 'amd64' else 'aarch64' }}&version={{ target_zotero_version }}"
 
             - name: Download and extract Zotero locally
               # Zotero distributions are tarballs, we unpack straight into /opt
@@ -236,11 +237,11 @@
           ignore_errors: yes
           register: winapps_clone
 
-        - name: Run WinApps installer
-          shell: cd /opt/winapps && ./install.sh
-          when: winapps_clone.changed | default(false)
-          ignore_errors: yes
+        - name: Skip interactive WinApps installer (requires manual setup)
+          debug:
+            msg: "WinApps cloned to /opt/winapps — run './install.sh' manually after configuring your Windows VM."
           register: winapps_install
+          when: winapps_clone.changed | default(false)
 
         - name: Log WinApps installation
           lineinfile:
@@ -285,7 +286,7 @@
         - drawio
       when: snap_check.rc == 0
       register: snap_prod_install
-      changed_when: "'installed' in snap_prod_install.stdout"
+      changed_when: false
       ignore_errors: yes
 
     - name: Log Snap Productivity Suite installation

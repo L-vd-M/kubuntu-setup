@@ -1,4 +1,8 @@
 ---
+# ============================================
+# GPU DETECTION
+# ============================================
+
 - name: Install lspci utility
   apt:
     name: pciutils
@@ -6,23 +10,20 @@
   become: yes
 
 - name: Detect NVIDIA graphics cards
-  # Use '|| true' so empty output (no GPU) never causes task failure
-  shell: lspci | grep -i nvidia || true
+  # Filter to VGA/display/3D devices only — avoids false positives from NVIDIA audio controllers
+  shell: lspci | grep -i nvidia | grep -iE "vga|display|3d" || true
   register: nvidia_gpus
   changed_when: false
-  ignore_errors: yes
 
 - name: Detect AMD graphics cards
   shell: lspci | grep -i amd | grep -iE "vga|display" || true
   register: amd_gpus
   changed_when: false
-  ignore_errors: yes
 
 - name: Detect Intel graphics cards
   shell: lspci | grep -i intel | grep -iE "vga|display" || true
   register: intel_gpus
   changed_when: false
-  ignore_errors: yes
 
 - name: Log detected graphics cards
   lineinfile:
@@ -62,16 +63,18 @@
   become: no
 
 - name: Set GPU presence facts
-  # Check for non-empty stdout; avoids false positives from fallback echo strings
   set_fact:
     has_nvidia: "{{ nvidia_gpus.stdout | trim | length > 0 }}"
     has_amd: "{{ amd_gpus.stdout | trim | length > 0 }}"
     has_intel: "{{ intel_gpus.stdout | trim | length > 0 }}"
 
-# --- NVIDIA ---
+# ============================================
+# NVIDIA DRIVER INSTALLATION
+# ============================================
+
 - name: Install NVIDIA drivers
   block:
-    - name: Install NVIDIA drivers
+    - name: Install NVIDIA driver packages
       apt:
         name:
           - nvidia-driver-550
@@ -98,11 +101,18 @@
       become: no
   when: has_nvidia
 
-# --- NVIDIA GRUB KERNEL PARAMETERS ---
-# These params fix HDMI detection and enable proper suspend/hibernate for NVIDIA Ampere GPUs.
-# - nvidia_drm.modeset=1          : kernel mode-setting for display enumeration
-# - NVreg_DynamicPowerManagement=0: disables GPU power-gating that hides HDMI on wake
-# - NVreg_PreserveVideoMemoryAllocations=1: keeps VRAM allocated (required for hibernate)
+# ============================================
+# NVIDIA GRUB KERNEL PARAMETERS
+# ============================================
+# These params fix display detection and enable proper suspend/hibernate for NVIDIA GPUs.
+# - nvidia_drm.modeset=1                         : kernel mode-setting for display enumeration
+# - nvidia.NVreg_DynamicPowerManagement=0         : disables GPU power-gating that hides HDMI on wake
+# - nvidia.NVreg_PreserveVideoMemoryAllocations=1 : keeps VRAM allocated (required for hibernate)
+#
+# Each parameter is checked individually and added only if missing. This avoids the
+# fragile negative-lookahead regex and safely coexists with other tasks (e.g. hibernation)
+# that also modify GRUB_CMDLINE_LINUX_DEFAULT.
+
 - name: Add NVIDIA kernel parameters to GRUB
   block:
     - name: Backup GRUB config before NVIDIA parameter modification
@@ -112,14 +122,19 @@
         remote_src: yes
         force: no
 
-    - name: Add NVIDIA kernel parameters to GRUB_CMDLINE_LINUX_DEFAULT
-      # Idempotent: negative lookahead ensures params are not duplicated on re-runs
-      lineinfile:
-        path: /etc/default/grub
-        regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")((?!.*nvidia_drm\.modeset).*)"\s*$'
-        line: '\1\2 nvidia.NVreg_PreserveVideoMemoryAllocations=1 nvidia.NVreg_DynamicPowerManagement=0 nvidia_drm.modeset=1"'
-        backrefs: yes
+    - name: Ensure NVIDIA GRUB parameters are present
+      shell: |
+        GRUB_FILE="/etc/default/grub"
+        CHANGED=0
+        for PARAM in "nvidia_drm.modeset=1" "nvidia.NVreg_PreserveVideoMemoryAllocations=1" "nvidia.NVreg_DynamicPowerManagement=0"; do
+          if ! grep -q "$PARAM" "$GRUB_FILE"; then
+            sed -i "s/^\(GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*\)\"/\1 $PARAM\"/" "$GRUB_FILE"
+            CHANGED=1
+          fi
+        done
+        echo "changed=$CHANGED"
       register: grub_nvidia_params
+      changed_when: "'changed=1' in grub_nvidia_params.stdout"
 
     - name: Update GRUB with NVIDIA kernel parameters
       command: update-grub
@@ -134,10 +149,21 @@
   become: yes
   when: has_nvidia
 
-# --- NVIDIA XORG DISPLAY CONFIGURATION ---
-# Explicit Xorg device config ensures X11 enumerates the HDMI port on boot.
-# AllowEmptyInitialConfiguration handles cases where no connected display is found at startup.
-- name: Configure Xorg for NVIDIA display output
+# ============================================
+# NVIDIA DISPLAY CONFIGURATION
+# ============================================
+# On hybrid Optimus laptops (e.g. MSI Vector GP76), the internal panel is wired to the
+# Intel iGPU while HDMI and mini-DP ports are wired to the NVIDIA dGPU.
+#
+# With `prime-select nvidia`, Ubuntu's nvidia-prime package handles the primary GPU
+# selection and Xorg configuration. We provide only the supplementary config needed:
+# - AllowEmptyInitialConfiguration: lets X start even if no monitor is on the NVIDIA GPU
+#   at boot time (e.g. only laptop panel connected, which routes through iGPU).
+#
+# We do NOT set PrimaryGPU here — nvidia-prime manages that. Setting it manually
+# can conflict with the automatic reverse PRIME setup and cause displays to go dark.
+
+- name: Configure display output for NVIDIA
   block:
     - name: Ensure Xorg configuration directory exists
       file:
@@ -153,40 +179,102 @@
               Identifier     "NVIDIA Card"
               Driver         "nvidia"
               Option         "AllowEmptyInitialConfiguration"
-              Option         "PrimaryGPU" "yes"
           EndSection
         owner: root
         group: root
         mode: '0644'
+      register: xorg_nvidia_config
 
-    - name: Log Xorg NVIDIA configuration created
+    # SDDM (KDE's display manager) needs a Xsetup script to configure reverse PRIME
+    # output sourcing. This makes the Intel iGPU's outputs (laptop panel) available
+    # when NVIDIA is the primary renderer. The nvidia-prime package should install
+    # this, but we verify and create it if missing.
+    - name: Ensure SDDM scripts directory exists
+      file:
+        path: /usr/share/sddm/scripts
+        state: directory
+        mode: '0755'
+
+    - name: Check if SDDM Xsetup handles NVIDIA PRIME
+      shell: grep -q 'setprovideroutputsource' /usr/share/sddm/scripts/Xsetup 2>/dev/null
+      register: sddm_xsetup_check
+      changed_when: false
+      failed_when: false
+
+    - name: Configure SDDM Xsetup for NVIDIA reverse PRIME
+      copy:
+        dest: /usr/share/sddm/scripts/Xsetup
+        content: |
+          #!/bin/sh
+          # Xsetup - configure display providers for NVIDIA PRIME
+          # Makes Intel iGPU outputs (laptop panel) available when NVIDIA is primary
+          xrandr --setprovideroutputsource modesetting NVIDIA-0 2>/dev/null
+          xrandr --auto 2>/dev/null
+        owner: root
+        group: root
+        mode: '0755'
+      when: sddm_xsetup_check.rc != 0
+
+    - name: Log display configuration
       lineinfile:
         path: "{{ log_file }}"
-        line: "✓ Xorg NVIDIA display configuration written to /etc/X11/xorg.conf.d/20-nvidia.conf"
+        line: "✓ NVIDIA display configuration applied (Xorg + SDDM reverse PRIME)"
         state: present
       become: no
   become: yes
   when: has_nvidia
 
-# --- NVIDIA MODPROBE (DRM MODESET) ---
-# Belt-and-suspenders: declare modeset via modprobe in addition to the GRUB cmdline.
+# ============================================
+# NVIDIA MODPROBE (DRM MODESET + FBDEV)
+# ============================================
+# Belt-and-suspenders: declare modeset and fbdev via modprobe in addition to GRUB cmdline.
+# - modeset=1: required for kernel mode-setting and Wayland support
+# - fbdev=1:   enables NVIDIA framebuffer device for proper console and early display
+#              initialisation on all connected monitors (required for driver 550+)
+#
 # On some UEFI systems the initrd loads the nvidia-drm module before GRUB params are
-# visible, so this file is the only reliable way to guarantee modeset=1 is honoured.
+# visible, so this file is the only reliable way to guarantee these options are honoured.
+
 - name: Create nvidia-drm modprobe configuration
   copy:
     dest: /etc/modprobe.d/nvidia-drm.conf
-    content: "options nvidia-drm modeset=1\n"
+    content: "options nvidia-drm modeset=1 fbdev=1\n"
     owner: root
     group: root
     mode: '0644'
   become: yes
+  register: nvidia_modprobe_config
   when: has_nvidia
 
-# --- NVIDIA PRIME (PERFORMANCE MODE) ---
-# On Optimus laptops (e.g. MSI Vector GP76) the HDMI port is wired directly to the
-# NVIDIA dGPU, not the Intel iGPU.  The default 'on-demand' PRIME profile power-gates
-# the dGPU, which hides the HDMI port from the entire display stack.  Switching to
-# 'nvidia' mode makes the dGPU the primary GPU so the HDMI port is active after reboot.
+# ============================================
+# NVIDIA EARLY KMS (INITRAMFS MODULES)
+# ============================================
+# Loading NVIDIA modules in initramfs ensures the GPU is initialised before the
+# display manager starts. This is required for Wayland compositors (KWin) and
+# provides smoother boot with proper display output on all monitors from early boot.
+
+- name: Add NVIDIA modules to initramfs for early KMS
+  lineinfile:
+    path: /etc/initramfs-tools/modules
+    line: "{{ item }}"
+    state: present
+  loop:
+    - nvidia
+    - nvidia_modeset
+    - nvidia_uvm
+    - nvidia_drm
+  become: yes
+  register: nvidia_initramfs_modules
+  when: has_nvidia
+
+# ============================================
+# NVIDIA PRIME (PERFORMANCE MODE)
+# ============================================
+# On Optimus laptops the HDMI and mini-DP ports are wired directly to the NVIDIA dGPU.
+# The default 'on-demand' PRIME profile power-gates the dGPU, which hides these ports
+# from the display stack. Switching to 'nvidia' mode makes the dGPU the primary GPU
+# so all dGPU-wired ports are active after reboot.
+
 - name: Query current PRIME GPU profile
   command: prime-select query
   become: yes
@@ -204,14 +292,17 @@
 - name: Log NVIDIA PRIME mode set
   lineinfile:
     path: "{{ log_file }}"
-    line: "✓ NVIDIA PRIME mode set to 'nvidia' (performance) — dGPU is primary, HDMI port active"
+    line: "✓ NVIDIA PRIME mode set to 'nvidia' (performance) — dGPU is primary, HDMI/DP ports active"
     state: present
   become: no
   when: has_nvidia and prime_select_result is defined and prime_select_result.changed
 
-# --- NVIDIA SYSTEMD POWER MANAGEMENT SERVICES ---
+# ============================================
+# NVIDIA SYSTEMD POWER MANAGEMENT SERVICES
+# ============================================
 # Required for clean suspend / resume / hibernate when nvidia-drm modeset=1 is active.
 # Without these, the kernel DRM framebuffer is not correctly released/restored on sleep.
+
 - name: Enable NVIDIA systemd power management services
   systemd:
     name: "{{ item }}"
@@ -225,7 +316,113 @@
   ignore_errors: yes
   when: has_nvidia
 
-# --- AMD ---
+# ============================================
+# SECURE BOOT — MOK ENROLLMENT
+# ============================================
+# When Secure Boot is active, the kernel rejects unsigned modules. The NVIDIA DKMS
+# module will fail to load silently — `prime-select` reports `nvidia` but the GPU
+# is never actually used. This block checks for Secure Boot, verifies the DKMS-
+# generated signing key, and enrols it via mokutil if not yet in the MOK database.
+# The user completes enrollment via the blue/grey MOK Manager screen on next reboot.
+
+- name: Secure Boot MOK enrollment for NVIDIA
+  block:
+    - name: Check Secure Boot state
+      command: mokutil --sb-state
+      register: secure_boot_state
+      changed_when: false
+      failed_when: false
+
+    - name: Handle MOK enrollment if Secure Boot is enabled
+      block:
+        - name: Check if DKMS MOK key exists
+          stat:
+            path: /var/lib/shim-signed/mok/MOK.der
+          register: mok_key
+
+        - name: Check if MOK key is already enrolled
+          command: mokutil --test-key /var/lib/shim-signed/mok/MOK.der
+          register: mok_test
+          changed_when: false
+          failed_when: false
+          when: mok_key.stat.exists
+
+        - name: Generate one-time MOK enrollment password
+          shell: openssl rand -hex 8
+          register: mok_password
+          changed_when: false
+          when:
+            - mok_key.stat.exists
+            - mok_test.rc | default(1) != 0
+
+        - name: Import MOK key with generated password
+          shell: printf '%s\n%s\n' '{{ mok_password.stdout }}' '{{ mok_password.stdout }}' | mokutil --import /var/lib/shim-signed/mok/MOK.der
+          when: mok_password.stdout is defined
+          register: mok_import
+
+        - name: Display MOK enrollment instructions
+          debug:
+            msg: |
+              ========================================
+              ⚠  SECURE BOOT — MOK ENROLLMENT REQUIRED
+              ========================================
+              A Machine Owner Key (MOK) has been queued for enrollment.
+
+              MOK password: {{ mok_password.stdout }}
+
+              On the next reboot, a blue/grey MOK Manager screen will appear:
+                1. Select "Enroll MOK" → "Continue" → "Yes"
+                2. Enter the password above
+                3. Select "Reboot"
+
+              This is a one-time action. The key persists across kernel upgrades.
+              ========================================
+          when: mok_import is changed
+
+        - name: Log MOK enrollment
+          lineinfile:
+            path: "{{ log_file }}"
+            line: "✓ Secure Boot MOK key enrolled — complete enrollment in MOK Manager on next reboot (password in Ansible output)"
+            state: present
+          become: no
+          when: mok_import is changed
+
+      when: "'SecureBoot enabled' in secure_boot_state.stdout | default('')"
+  become: yes
+  when: has_nvidia
+
+# ============================================
+# MUX SWITCH INFORMATION
+# ============================================
+# The MSI Vector GP76 has a hardware MUX switch that can route the internal panel
+# directly to the dGPU, bypassing the iGPU entirely. This cannot be toggled from
+# Linux — it requires a BIOS change. This message informs the user of their options.
+
+- name: Display MUX switch information for hybrid GPU laptops
+  debug:
+    msg: |
+      ========================================
+      ℹ  GPU MUX SWITCH INFORMATION
+      ========================================
+      Your laptop may have a hardware MUX switch in BIOS:
+        Advanced → Optimus Configuration
+
+      Available modes:
+        • Optimus (default): Hybrid graphics — iGPU drives laptop panel,
+          dGPU drives HDMI/DP. Best battery life. This playbook configures
+          PRIME to use the dGPU as primary renderer with reverse PRIME
+          for the laptop panel.
+        • dGPU Only: All displays route through NVIDIA. Simplest multi-
+          monitor setup, but worse battery life and no iGPU video decode.
+
+      The MUX switch cannot be toggled from Linux — it requires a BIOS change.
+      ========================================
+  when: has_nvidia
+
+# ============================================
+# AMD DRIVERS
+# ============================================
+
 - name: Install AMD drivers
   block:
     - name: Install AMD AMDGPU drivers
@@ -255,7 +452,10 @@
       become: no
   when: has_amd
 
-# --- Intel ---
+# ============================================
+# INTEL DRIVERS
+# ============================================
+
 - name: Install Intel drivers
   block:
     - name: Install Intel graphics drivers
@@ -286,7 +486,10 @@
       become: no
   when: has_intel
 
-# --- PURGE UNUSED DRIVERS ---
+# ============================================
+# PURGE UNUSED DRIVERS
+# ============================================
+
 - name: Purge unused GPU drivers
   block:
     - name: Purge NVIDIA drivers if no NVIDIA GPU exists
@@ -298,7 +501,7 @@
 
     - name: Purge AMD drivers if no AMD GPU exists
       apt:
-        name: 
+        name:
           - xserver-xorg-video-amdgpu
           - xserver-xorg-video-radeon
         state: absent
@@ -316,10 +519,22 @@
   become: yes
   ignore_errors: yes
 
-- name: Update initramfs
-  shell: update-initramfs -u
+# ============================================
+# INITRAMFS UPDATE (CONDITIONAL)
+# ============================================
+# Only rebuild initramfs if GPU-related configuration actually changed.
+
+- name: Update initramfs after GPU configuration changes
+  command: update-initramfs -u
   become: yes
-  ignore_errors: yes
+  when: >
+    (nvidia_modprobe_config is defined and nvidia_modprobe_config.changed) or
+    (nvidia_initramfs_modules is defined and nvidia_initramfs_modules.changed) or
+    (nvidia_install is defined and nvidia_install.changed | default(false))
+
+# ============================================
+# DRIVER VERIFICATION
+# ============================================
 
 - name: Verify graphics drivers
   shell: |
@@ -337,8 +552,6 @@
   become: no
 
 - name: Set reboot required flag for NVIDIA hardware
-  # A reboot is always needed after installing/verifying NVIDIA drivers so the kernel
-  # can load the module and the GRUB kernel parameters take effect.
   set_fact:
     needs_reboot: true
   when: has_nvidia

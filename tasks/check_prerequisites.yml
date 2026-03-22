@@ -64,7 +64,7 @@
 - name: Log curl installation
   lineinfile:
     path: "{{ log_file }}"
-    line: "Curl installation attempted: {{ 'Installed' if curl_check.rc == 0 else 'Already installed' }}"
+    line: "Curl: {{ 'Already installed' if curl_check.rc == 0 else 'Newly installed' }}"
     state: present
   become: false
 
@@ -86,7 +86,7 @@
 - name: Log wget installation
   lineinfile:
     path: "{{ log_file }}"
-    line: "Wget installation attempted: {{ 'Installed' if wget_check.rc == 0 else 'Already installed' }}"
+    line: "Wget: {{ 'Already installed' if wget_check.rc == 0 else 'Newly installed' }}"
     state: present
   become: false
 
@@ -108,7 +108,7 @@
 - name: Log git installation
   lineinfile:
     path: "{{ log_file }}"
-    line: "Git installation attempted: {{ 'Installed' if git_check.rc == 0 else 'Already installed' }}"
+    line: "Git: {{ 'Already installed' if git_check.rc == 0 else 'Newly installed' }}"
     state: present
   become: false
 

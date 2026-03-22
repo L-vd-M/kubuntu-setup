@@ -92,27 +92,6 @@
         state: present
       become: no
 
-    - name: Install gtop via npm
-      block:
-        - name: Check if npm is available
-          command: which npm
-          register: npm_check
-          ignore_errors: yes
-          changed_when: false
-
-        - name: Install gtop via npm
-          shell: npm install -g gtop
-          when: npm_check.rc == 0
-          ignore_errors: yes
-          register: gtop_install
-
-        - name: Log gtop installation
-          lineinfile:
-            path: "{{ log_file }}"
-            line: "{% if gtop_install.failed | default(false) %}✗ System monitor (gtop) - Status: Failed{% else %}✓ System monitor (gtop) - Status: {{ gtop_install.changed | default(false) | ternary('Installed/Updated', 'Already installed') }}{% endif %}"
-            state: present
-          become: no
-
     - name: Check for VirtualBox
       command: which virtualbox
       register: virtualbox_check
@@ -121,17 +100,15 @@
 
     - name: Install Oracle VirtualBox
       block:
-        - name: Download VirtualBox repository keyring
-          get_url:
-            url: https://www.virtualbox.org/download/oracle_vbox_2016.asc
-            dest: /etc/apt/keyrings/oracle_vbox_2016.asc
-            mode: '0644'
-            force: yes
+        - name: Download and dearmor VirtualBox repository key
+          shell: curl -fsSL https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor -o /etc/apt/keyrings/oracle_vbox_2016.gpg
+          args:
+            creates: /etc/apt/keyrings/oracle_vbox_2016.gpg
           ignore_errors: yes
 
         - name: Add VirtualBox repository
           apt_repository:
-            repo: "deb [arch={{ dpkg_arch }} signed-by=/etc/apt/keyrings/oracle_vbox_2016.asc] https://download.virtualbox.org/virtualbox/debian {{ ansible_distribution_release }} contrib"
+            repo: "deb [arch={{ dpkg_arch }} signed-by=/etc/apt/keyrings/oracle_vbox_2016.gpg] https://download.virtualbox.org/virtualbox/debian {{ ansible_distribution_release }} contrib"
             state: present
           ignore_errors: yes
 
@@ -214,7 +191,7 @@
       block:
         - name: Add Fish PPA for the latest version
           apt_repository:
-            repo: ppa:fish-shell/release-3
+            repo: ppa:fish-shell/release-4
             state: present
           become: yes
           ignore_errors: yes

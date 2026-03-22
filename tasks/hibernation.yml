@@ -28,7 +28,7 @@
       command: swapoff -a
 
     - name: Create larger swapfile via dd (this takes up to a minute)
-      command: "dd if=/dev/zero of={{ swap_file }} bs=1G count={{ required_swap_gb }} status=progress"
+      command: "dd if=/dev/zero of={{ swap_file }} bs=1M count={{ required_swap_mb }} status=progress"
       register: dd_output
 
     - name: Set correct permissions on swapfile
@@ -92,9 +92,10 @@
 - name: Apply Hibernation Changes
   block:
     - name: Configure initramfs resume parameter
+      # initramfs-tools only recognises RESUME=; resume_offset belongs in GRUB only
       copy:
         dest: /etc/initramfs-tools/conf.d/resume
-        content: "RESUME=UUID={{ target_uuid }} resume_offset={{ target_offset }}\n"
+        content: "RESUME=UUID={{ target_uuid }}\n"
         owner: root
         group: root
         mode: '0644'
@@ -106,13 +107,39 @@
         remote_src: yes
         force: no
 
-    - name: Add resume params to GRUB_CMDLINE_LINUX_DEFAULT
-      # Idempotent: negative lookahead prevents duplicate resume= params on re-runs
-      lineinfile:
-        path: /etc/default/grub
-        regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")((?!.*resume=UUID).*)"\s*$'
-        line: '\1\2 resume=UUID={{ target_uuid }} resume_offset={{ target_offset }}"'
-        backrefs: yes
+    - name: Ensure hibernation resume params are in GRUB
+      # Each param is checked individually and added if missing, or updated if changed.
+      # This safely coexists with other tasks (e.g. graphics.yml) that also modify
+      # GRUB_CMDLINE_LINUX_DEFAULT, avoiding fragile negative-lookahead regex.
+      shell: |
+        GRUB_FILE="/etc/default/grub"
+        CHANGED=0
+
+        # Handle resume=UUID= — update existing or add new
+        CURRENT=$(grep -oP 'resume=UUID=[^\s"]+' "$GRUB_FILE" || true)
+        TARGET="resume=UUID={{ target_uuid }}"
+        if [ -z "$CURRENT" ]; then
+          sed -i "s/^\(GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*\)\"/\1 $TARGET\"/" "$GRUB_FILE"
+          CHANGED=1
+        elif [ "$CURRENT" != "$TARGET" ]; then
+          sed -i "s|$CURRENT|$TARGET|" "$GRUB_FILE"
+          CHANGED=1
+        fi
+
+        # Handle resume_offset= — update existing or add new
+        CURRENT=$(grep -oP 'resume_offset=[^\s"]+' "$GRUB_FILE" || true)
+        TARGET="resume_offset={{ target_offset }}"
+        if [ -z "$CURRENT" ]; then
+          sed -i "s/^\(GRUB_CMDLINE_LINUX_DEFAULT=\"[^\"]*\)\"/\1 $TARGET\"/" "$GRUB_FILE"
+          CHANGED=1
+        elif [ "$CURRENT" != "$TARGET" ]; then
+          sed -i "s|$CURRENT|$TARGET|" "$GRUB_FILE"
+          CHANGED=1
+        fi
+
+        echo "changed=$CHANGED"
+      register: grub_hibernate_params
+      changed_when: "'changed=1' in grub_hibernate_params.stdout"
 
     - name: Ensure modern polkit rules directory exists
       file:
@@ -163,6 +190,7 @@
 
     - name: Update GRUB
       command: update-grub
+      when: grub_hibernate_params.changed | default(false)
 
     - name: Verify hibernation resume file was written correctly
       shell: "grep -E 'RESUME=UUID' /etc/initramfs-tools/conf.d/resume"

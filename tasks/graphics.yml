@@ -206,14 +206,25 @@
         dest: /usr/share/sddm/scripts/Xsetup
         content: |
           #!/bin/sh
-          # Xsetup - configure display providers for NVIDIA PRIME
-          # Makes Intel iGPU outputs (laptop panel) available when NVIDIA is primary
-          xrandr --setprovideroutputsource modesetting NVIDIA-0 2>/dev/null
-          xrandr --auto 2>/dev/null
+          # Xsetup - configure reverse PRIME for NVIDIA hybrid graphics
+          # Makes Intel iGPU outputs (laptop panel) available when NVIDIA is primary.
+          # Tries multiple provider names for compatibility across driver versions.
+          LOG="/tmp/sddm-xsetup.log"
+          echo "$(date): Xsetup starting" > "$LOG"
+          xrandr --listproviders >> "$LOG" 2>&1
+
+          # Try known provider names for the iGPU
+          for provider in modesetting Intel "Integrated Graphics Controller"; do
+              if xrandr --setprovideroutputsource "$provider" NVIDIA-0 >> "$LOG" 2>&1; then
+                  echo "$(date): Reverse PRIME configured with provider '$provider'" >> "$LOG"
+                  break
+              fi
+          done
+          xrandr --auto >> "$LOG" 2>&1
+          echo "$(date): Xsetup complete" >> "$LOG"
         owner: root
         group: root
         mode: '0755'
-      when: sddm_xsetup_check.rc != 0
 
     # Ensure SDDM is configured to actually run the Xsetup script.
     # Without this, SDDM may ignore the script entirely.
@@ -223,10 +234,19 @@
         state: directory
         mode: '0755'
 
-    - name: Configure SDDM to use Xsetup script and X11 greeter
+    - name: Configure SDDM to use X11 display server with Xsetup
+      # Force X11 for the SDDM greeter. KDE Plasma 6 defaults to a Wayland greeter
+      # which does not run Xsetup, so the reverse PRIME output source is never
+      # configured and the laptop panel stays on the boot console.
+      # The user's desktop session can still be Wayland — this only affects the
+      # login screen. X11 SDDM + Xsetup is the most reliable path for hybrid
+      # NVIDIA laptops where external ports are on the dGPU and the panel is on the iGPU.
       copy:
         dest: /etc/sddm.conf.d/10-nvidia-prime.conf
         content: |
+          [General]
+          DisplayServer=x11
+
           [X11]
           DisplayCommand=/usr/share/sddm/scripts/Xsetup
         owner: root

@@ -18,7 +18,7 @@ venv/
 Thumbs.db
 
 # Logs (generated at runtime)
-*.log
+# *.log
 
 # Backup files
 *.bak

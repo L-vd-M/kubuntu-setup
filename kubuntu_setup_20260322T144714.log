@@ -1,0 +1,117 @@
+========================================
+Kubuntu Setup Playbook Execution Log
+========================================
+Started   : 2026-03-22T12:47:14Z
+Hostname  : lourens-vectorgp7612ugs
+OS        : Ubuntu 24.04
+Release   : noble
+Arch      : x86_64
+Kernel    : 6.17.0-19-generic
+========================================
+Python Version  : 3.12.3
+Ansible Version : 2.16.3
+Total Memory    : 31795 MB
+CPU Cores       : 14
+Default IPv4    : 192.168.17.234
+
+========== [1/7] PREREQUISITES ==========
+Python is installed: Python 3.12.3
+APT is available: apt 2.8.3 (amd64)
+Internet connectivity: Available
+Curl: Already installed
+Wget: Already installed
+Git: Already installed
+Pciutils installation attempted: Installed
+Sudo is installed: Installed
+Prerequisite checks completed successfully.
+
+========== [2/7] GRAPHICS DRIVERS ==========
+Detected Graphics Cards:
+  NVIDIA: 01:00.0 VGA compatible controller: NVIDIA Corporation GA104 [Geforce RTX 3070 Ti Laptop GPU] (rev a1)
+  AMD: None detected
+  Intel: 00:02.0 VGA compatible controller: Intel Corporation Alder Lake-P GT2 [Iris Xe Graphics] (rev 0c)
+User confirmed graphics card detection - proceeding with driver installation
+✓ NVIDIA drivers installed successfully (Status: Already present)
+✓ NVIDIA kernel parameters applied to GRUB (DRM modeset, power management, memory preservation)
+✓ NVIDIA display configuration applied (Xorg + SDDM + KWin multi-GPU)
+✓ Intel drivers installed successfully (Status: Already present)
+Driver verification:
+=== Installed Graphics Drivers ===
+xe                   3874816  0
+gpu_sched              65536  1 xe
+drm_gpuvm              49152  1 xe
+drm_gpusvm_helper      36864  1 xe
+drm_exec               12288  2 drm_gpuvm,xe
+drm_suballoc_helper    24576  1 xe
+i915                 4837376  3
+drm_buddy              28672  2 xe,i915
+drm_display_helper    290816  2 xe,i915
+cec                    98304  3 drm_display_helper,xe,i915
+i2c_algo_bit           16384  2 xe,i915
+intel_vsec             24576  3 intel_pmc_ssram_telemetry,pmt_telemetry,xe
+nvidia_uvm           2076672  0
+nvidia_drm            135168  22
+nvidia_modeset       1638400  72 nvidia_drm
+nvidia              104144896  839 nvidia_uvm,nvidia_drm,nvidia_modeset
+video                  77824  4 msi_wmi,xe,i915,nvidia_modeset
+drm_ttm_helper         16384  2 nvidia_drm,xe
+ttm                   126976  3 drm_ttm_helper,xe,i915
+
+========== [3/7] SYSTEM UTILITIES ==========
+Checking system utilities...
+✓ Compression utilities installed (zip, gzip, tar) - Status: Already installed
+✓ Nano text editor - Status: Already installed
+✓ System monitors (htop, btop, nvtop) - Status: Already installed
+✓ Oracle VirtualBox 7.0 - Status: Already installed
+✓ Virt-Manager (KVM/QEMU) - Status: Already installed
+✓ Build essentials and Linux headers - Status: Already installed
+✓ Fish Shell - Status: Already installed
+
+========== [4/7] PROGRAMMING TOOLS ==========
+✓ Git version control - Status: Already installed
+✓ Node.js 22.x (via NVM) - Status: Installed
+✓ System monitor (gtop) - Status: Already installed or skipped
+✓ Visual Studio Code - Status: Already installed
+✓ Antigravity desktop launcher - Status: Installed
+✓ Telecom Engineering Suite (GNU Radio, Wireshark, Jupyter) - Status: Already installed
+
+========== [5/7] MEDIA & COMMUNICATION ==========
+✓ Discord chat application - Status: Already installed
+✓ OBS Studio screen recording - Status: Already installed
+✓ Spotify music streaming - Status: Already installed
+✓ Media utilities (VLC, FFmpeg) - Status: Already installed
+
+Note: WhatsApp can be installed via WinApps.
+After WinApps setup, run: winapps install whatsapp
+
+
+========== [6/7] PRODUCTIVITY & OFFICE ==========
+✓ Obsidian note-taking app - Status: Installed
+✓ Zotero citation manager - Status: Already installed
+✓ Google Chrome browser - Status: Already installed
+✓ WinApps - Status: Already installed or requires manual setup
+  Note: For Excel, Outlook, and WhatsApp, run 'winapps install <app>' after setup
+✓ Academic Suite (Okular, TeXstudio, Pandoc) - Status: Already installed
+✓ Snap Productivity Suite (Draw.io, Super Productivity) - Status: Checked or Installed
+
+========== [7/7] HIBERNATION ==========
+Hibernation configuration verification:
+  Resume file: OK - RESUME=UUID=2eaaa259-9a45-4f56-a04e-da0767f56f54
+  GRUB resume: MISSING - resume params may not have been applied
+
+========================================
+📦 PACKAGE DELTA (DURING SETUP)
+========================================
+Newly Installed Packages:
+None
+
+Removed Packages:
+None
+========================================
+
+========================================
+KUBUNTU SETUP COMPLETED SUCCESSFULLY
+Finished : 2026-03-22T12:47:14Z
+========================================
+
+⚠ REBOOT REQUIRED: GPU drivers and/or hibernation changes need a system restart to take effect.

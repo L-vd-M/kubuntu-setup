@@ -11,5 +11,10 @@ You are operating within the `kubuntu-setup` repository. This playbook is strict
    - Do not attempt to add support for `dnf`, `pacman`, `dracut`, or Arch/RedHat paradigms here.
 3. **No Cross-Distro Abstractions**: Keep task syntax clean, rapid, and direct. Do not abstract packages into complex OS-mapping variable dictionaries. Hardcode the exact `apt` dependency names directly (e.g., `build-essential`, `python3-pyqt5`).
 4. **Safety & Modularity**: Strictly maintain `block/rescue` structures and `lineinfile` logging functionality in all task files.
+5. **Display Server Awareness**: This system uses a **split display server architecture**:
+   - **SDDM login screen**: forced to **X11** (`DisplayServer=x11`) so the `Xsetup` reverse PRIME script runs correctly at the login screen.
+   - **Desktop session**: **Wayland** (KDE Plasma 6 default on Ubuntu 24.04+), managed by KWin Wayland.
+   - **Xwayland** is active — a full Xorg config exists at `/etc/X11/xorg.conf.d/20-nvidia.conf`, so X11 tools (e.g. `wmctrl`) work inside the Wayland session via the Xwayland bridge.
+   - When writing tasks that interact with the graphical session (e.g. window listing, display detection), prefer tools that work via Xwayland (`wmctrl`, `xdotool`) or provide a Wayland-native fallback (`qdbus` to KWin). Do NOT assume a pure X11 or pure Wayland environment.
 
 Your singular goal is to securely maintain and surgically enhance this playbook safely within the Kubuntu ecosystem context.

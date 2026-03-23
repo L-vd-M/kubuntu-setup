@@ -211,6 +211,10 @@ Validates the system before any installation:
 #### `tasks/graphics.yml`
 Hardware-aware GPU driver installation:
 - Detects NVIDIA, AMD, Intel via `lspci` — empty stdout = GPU absent (fixed `|| true` avoids false positives)
+- **Display server architecture** (split configuration):
+  - **SDDM login screen** → forced to **X11** (`/etc/sddm.conf.d/10-nvidia-prime.conf`: `DisplayServer=x11`) so the `Xsetup` reverse PRIME script configures outputs before the desktop starts.
+  - **Desktop session** → **Wayland** (KDE Plasma 6 default on Ubuntu 24.04+); KWin Wayland configured via `KWIN_DRM_DEVICES` env var (enumerates all `/dev/dri/card*` devices dynamically at login so both NVIDIA dGPU and iGPU outputs are visible).
+  - **Xwayland** is active — full Xorg config at `/etc/X11/xorg.conf.d/20-nvidia.conf`; X11 tools (e.g. `wmctrl`) work inside the Wayland session via the Xwayland bridge.
 - **NVIDIA RTX (Ampere)**: installs `nvidia-driver-550`, `nvidia-utils-550`, `nvidia-settings`, `nvidia-prime`
 - **GRUB kernel parameters** (injected idempotently):
   - `nvidia_drm.modeset=1` — enables kernel mode-setting for HDMI/display enumeration
@@ -317,6 +321,7 @@ Fully automated hibernation configurator:
 | Internet | Required for all package installs and GitHub API calls |
 | Sudo / Ansible | `sudo apt install ansible git -y` before running |
 | Swap file | Must exist at `/swapfile` for hibernation (playbook will resize it if needed) |
+| Display Server | **Split architecture**: SDDM login screen runs X11; desktop session runs Wayland (KDE Plasma 6). Xwayland is active, so X11 tools work inside the Wayland session. |
 | WinApps | Requires manual KVM/QEMU Windows VM setup post-install |
 | Reboot | **Required** after first run — NVIDIA drivers + GRUB params only activate after reboot |
 | Secure Boot + NVIDIA | If Secure Boot is enabled, either enroll the MOK key (Option A — recommended) or disable Secure Boot in BIOS (Option B) — see Installation step 4 for both options and their trade-offs |

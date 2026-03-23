@@ -1,0 +1,796 @@
+---
+# test_hibernation_restore.yml
+#
+# PURPOSE:
+#   Complete integration test for the "hibernate + session restore" feature
+#   before it is merged into tasks/hibernation.yml.
+#
+# PHASES:
+#   1. Prerequisites   — swap size check, hibernate kernel support
+#   2. GRUB config     — idempotently applies resume=UUID + resume_offset params
+#   3. Initramfs check — verifies RESUME=UUID is correct
+#   4. Session scripts — deploys save/restore scripts, systemd-sleep hook, XDG autostart
+#   5. Live save test  — actually runs the save script and verifies output
+#   6. Hook wiring     — simulates pre/post hook to verify flag lifecycle
+#   7. Restore test    — runs restore script and verifies cleanup
+#   8. Readiness report— prints a full PASS/FAIL summary to the log
+#
+#   Cleanup tag: ansible-playbook test_hibernation_restore.yml --tags cleanup
+#   Reverts GRUB, removes all deployed scripts and state files.
+#
+# NOTE: wmctrl requires an active X11/Xwayland session. On this system SDDM
+#   runs X11 and the desktop runs Wayland with Xwayland active, so wmctrl
+#   works from within the Wayland session via the Xwayland bridge.
+
+- name: "[TEST] Hibernate + Session Restore — Full Integration Test"
+  hosts: localhost
+  become: yes
+  vars:
+    swap_file:          /swapfile
+    restore_state_dir:  /var/lib/hibernate-restore
+    save_script:        /usr/local/bin/hibernate-save-session.sh
+    restore_script:     /usr/local/bin/hibernate-restore-session.sh
+    sleep_hook:         /lib/systemd/system-sleep/hibernate-restore-hook
+    autostart_dir:      /etc/xdg/autostart
+    test_log:           /tmp/test_hibernation_restore.log
+
+  tasks:
+
+    # ------------------------------------------------------------------ #
+    #  PHASE 1: PREREQUISITES                                             #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: "[1/8] Check swap size is adequate for hibernation"
+          shell: |
+            SWAP_MB=$(awk '/SwapTotal/ {print $2}' /proc/meminfo)
+            SWAP_MB=$((SWAP_MB / 1024))
+            RAM_MB=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+            RAM_MB=$((RAM_MB / 1024))
+            REQUIRED=$((RAM_MB + 2048))
+            echo "swap=${SWAP_MB} ram=${RAM_MB} required=${REQUIRED}"
+            if [ "$SWAP_MB" -lt "$REQUIRED" ]; then
+              echo "INSUFFICIENT"
+              exit 1
+            fi
+            echo "OK"
+          register: swap_check
+          changed_when: false
+
+        - name: Log swap check result
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[1/8] Swap check: {{ swap_check.stdout_lines | join(' ') }}"
+            state: present
+            create: yes
+          become: no
+
+        - name: "[1/8] Check kernel hibernate support"
+          shell: grep -w disk /sys/power/state
+          register: hibernate_support
+          changed_when: false
+          failed_when: hibernate_support.rc != 0
+
+        - name: Log hibernate support
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[1/8] Kernel hibernate support: OK (/sys/power/state contains 'disk')"
+            state: present
+            create: yes
+          become: no
+
+      rescue:
+        - name: Log prerequisites failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL][1/8] Prerequisites: {{ ansible_failed_result.msg | default(ansible_failed_result.stdout | default('unknown')) }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  PHASE 2a: FIX NVIDIA PreserveVideoMemoryAllocations                #
+    #  NVreg_PreserveVideoMemoryAllocations=1 requires the NVIDIA driver  #
+    #  to be frozen via /proc/driver/nvidia/suspend (procfs) before the   #
+    #  kernel's PM freeze. This procfs write happens in userspace via     #
+    #  nvidia-hibernate.service, but on the RESUME boot the kernel runs   #
+    #  pm_freeze in early kernel — before any userspace service runs.     #
+    #  Result: pci_pm_freeze returns -5 (EIO) and resume aborts.         #
+    #  Fix: remove this param so the standard PCI PM path is used instead.#
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: "[2a/8] Remove NVreg_PreserveVideoMemoryAllocations=1 from GRUB"
+          shell: |
+            GRUB_FILE="/etc/default/grub"
+            CHANGED=0
+            CURRENT=$(grep -oP 'nvidia\.NVreg_PreserveVideoMemoryAllocations=\S+' "$GRUB_FILE" | tr -d "'\"" || true)
+            if [ -n "$CURRENT" ]; then
+              sed -i "s| $CURRENT||g; s|$CURRENT ||g; s|$CURRENT||g" "$GRUB_FILE"
+              CHANGED=1
+            fi
+            echo "changed=$CHANGED"
+          register: grub_preserve_fix
+          changed_when: "'changed=1' in grub_preserve_fix.stdout"
+
+        - name: "[2a/8] Set NVreg_PreserveVideoMemoryAllocations=0 in modprobe.d"
+          copy:
+            dest: /etc/modprobe.d/nvidia-power-management.conf
+            content: |
+              # PreserveVideoMemoryAllocations=1 prevents hibernate resume:
+              # the kernel calls pci_pm_freeze in early boot before userspace
+              # can write to /proc/driver/nvidia/suspend, causing -5 (EIO).
+              # Keep it disabled until an initramfs hook is in place.
+              options nvidia NVreg_PreserveVideoMemoryAllocations=0
+            owner: root
+            group: root
+            mode: '0644'
+
+        - name: "[2a/8] Run update-grub after NVIDIA param removal"
+          command: update-grub
+          when: grub_preserve_fix.changed
+
+        - name: "[2a/8] Update initramfs to pick up modprobe change"
+          command: update-initramfs -u
+          when: grub_preserve_fix.changed
+
+        - name: Log NVIDIA fix result
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[2a/8] NVIDIA PreserveVideoMemory fix: {{ 'removed from GRUB, set to 0 in modprobe.d' if grub_preserve_fix.changed else 'already clean' }}"
+            state: present
+            create: yes
+          become: no
+
+      rescue:
+        - name: Log NVIDIA fix failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL][2a/8] NVIDIA fix: {{ ansible_failed_result.msg | default('unknown') }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  PHASE 2b: GRUB HIBERNATION PARAMS                                  #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: "[2b/8] Detect partition UUID hosting the swapfile"
+          command: "findmnt -no UUID -T {{ swap_file }}"
+          register: root_uuid_output
+          changed_when: false
+
+        - name: "[2b/8] Detect physical block offset of the swapfile"
+          shell: |
+            filefrag -v {{ swap_file }} | awk '{ if($1=="0:"){print $4} }' | tr -d '.'
+          register: swap_offset_output
+          changed_when: false
+
+        - name: Set UUID and offset facts
+          set_fact:
+            target_uuid:   "{{ root_uuid_output.stdout | trim }}"
+            target_offset: "{{ swap_offset_output.stdout | trim }}"
+
+        - name: "[2b/8] Backup GRUB config (skip if backup already exists)"
+          copy:
+            src:  /etc/default/grub
+            dest: /etc/default/grub.hibernate-test.bak
+            remote_src: yes
+            force: no
+
+        - name: "[2b/8] Idempotently apply resume params to GRUB_CMDLINE_LINUX_DEFAULT"
+          shell: |
+            GRUB_FILE="/etc/default/grub"
+            CHANGED=0
+
+            # Detect the quote character used (single or double) in GRUB_CMDLINE_LINUX_DEFAULT
+            QCHAR=$(grep -oP "GRUB_CMDLINE_LINUX_DEFAULT=(['\"])" "$GRUB_FILE" | tail -c2 | head -c1)
+            if [ -z "$QCHAR" ]; then QCHAR='"'; fi
+
+            # Handle resume=UUID=
+            CURRENT=$(grep -oP 'resume=UUID=\S+' "$GRUB_FILE" | tr -d "'\"" || true)
+            TARGET="resume=UUID={{ target_uuid }}"
+            if [ -z "$CURRENT" ]; then
+              sed -i "s/\(GRUB_CMDLINE_LINUX_DEFAULT=${QCHAR}[^${QCHAR}]*\)${QCHAR}/\1 ${TARGET}${QCHAR}/" "$GRUB_FILE"
+              CHANGED=1
+            elif [ "$CURRENT" != "$TARGET" ]; then
+              sed -i "s|$CURRENT|$TARGET|" "$GRUB_FILE"
+              CHANGED=1
+            fi
+
+            # Handle resume_offset=
+            CURRENT=$(grep -oP 'resume_offset=\S+' "$GRUB_FILE" | tr -d "'\"" || true)
+            TARGET="resume_offset={{ target_offset }}"
+            if [ -z "$CURRENT" ]; then
+              sed -i "s/\(GRUB_CMDLINE_LINUX_DEFAULT=${QCHAR}[^${QCHAR}]*\)${QCHAR}/\1 ${TARGET}${QCHAR}/" "$GRUB_FILE"
+              CHANGED=1
+            elif [ "$CURRENT" != "$TARGET" ]; then
+              sed -i "s|$CURRENT|$TARGET|" "$GRUB_FILE"
+              CHANGED=1
+            fi
+
+            echo "changed=$CHANGED"
+          register: grub_params
+          changed_when: "'changed=1' in grub_params.stdout"
+
+        - name: "[2b/8] Run update-grub to apply params"
+          command: update-grub
+          when: grub_params.changed
+
+        - name: "[2b/8] Verify resume params are in GRUB"
+          shell: "grep -oP 'resume=UUID=[0-9a-f-]+|resume_offset=[0-9]+' /etc/default/grub"
+          register: grub_verify
+          changed_when: false
+
+        - name: Log GRUB result
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[2b/8] GRUB params: {{ grub_verify.stdout_lines | join(' | ') }}"
+            state: present
+            create: yes
+          become: no
+
+      rescue:
+        - name: Log GRUB phase failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL][2b/8] GRUB config: {{ ansible_failed_result.msg | default(ansible_failed_result.stdout | default('unknown')) }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  PHASE 3: INITRAMFS VERIFICATION                                    #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: "[3/8] Verify initramfs RESUME=UUID is set correctly"
+          shell: |
+            CONF=/etc/initramfs-tools/conf.d/resume
+            if [ ! -f "$CONF" ]; then echo "MISSING"; exit 1; fi
+            CURRENT=$(grep -oP 'UUID=[^\s]+' "$CONF" || true)
+            EXPECTED="UUID={{ target_uuid | default('') }}"
+            if [ "$CURRENT" = "$EXPECTED" ]; then
+              echo "OK: $CURRENT"
+            else
+              echo "MISMATCH: current=$CURRENT expected=$EXPECTED"
+              exit 1
+            fi
+          register: initramfs_verify
+          changed_when: false
+
+        - name: Log initramfs result
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[3/8] Initramfs resume: {{ initramfs_verify.stdout }}"
+            state: present
+            create: yes
+          become: no
+
+      rescue:
+        - name: Log initramfs phase failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL][3/8] Initramfs: {{ ansible_failed_result.msg | default(ansible_failed_result.stdout | default('unknown')) }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  PHASE 4a: INSTALL DEPENDENCY                                       #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: "[4/8] Install wmctrl (required for X11/Xwayland window listing)"
+          apt:
+            name: wmctrl
+            state: present
+            update_cache: no
+
+      rescue:
+        - name: Log dependency failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL][4/8] wmctrl install failed: {{ ansible_failed_result.msg | default('unknown error') }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  STATE DIRECTORY                                                     #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: Create restore state directory
+          file:
+            path: "{{ restore_state_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: '0755'
+
+      rescue:
+        - name: Log state-dir failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL] Could not create {{ restore_state_dir }}: {{ ansible_failed_result.msg | default('unknown') }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  SAVE SCRIPT (called pre-hibernate)                                  #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: Deploy save-session script
+          copy:
+            dest: "{{ save_script }}"
+            owner: root
+            group: root
+            mode: '0755'
+            content: |
+              #!/bin/bash
+              # hibernate-save-session.sh
+              # Captures open GUI window classes for the active user and writes them
+              # to /var/lib/hibernate-restore/apps.txt.
+              # Also creates a 'pending-restore' flag file so the restore script
+              # knows a cold-boot happened if power is lost during hibernation.
+              set -euo pipefail
+
+              OUTFILE="{{ restore_state_dir }}/apps.txt"
+              FLAG="{{ restore_state_dir }}/pending-restore"
+
+              # Identify the graphical session user reliably.
+              # Avoid 'grep -v' which exits 1 on no-match and triggers set -e.
+              # Use loginctl to find the first active graphical session user.
+              REAL_USER=$(loginctl list-sessions --no-legend 2>/dev/null \
+                | awk '{print $3}' | sort -u | head -1 || true)
+              if [ -z "$REAL_USER" ]; then
+                REAL_USER=$(who | awk 'NR==1{print $1}' || true)
+              fi
+              if [ -z "$REAL_USER" ]; then
+                echo "[hibernate-save] No logged-in user detected, skipping." >&2
+                exit 0
+              fi
+
+              # Locate DISPLAY: check Xwayland/X11 environment for the user.
+              # On this system SDDM uses X11 (:0) and the desktop session runs
+              # Wayland; Xwayland bridges X11 apps and is typically on :0 or :1.
+              USER_DISPLAY=$(sudo -u "$REAL_USER" bash -c '
+                for d in :0 :1 :2; do
+                  if DISPLAY=$d xdpyinfo >/dev/null 2>&1; then echo $d; exit 0; fi
+                done; echo :0' 2>/dev/null || echo ":0")
+              USER_AUTH=$(find /run/user -name "Xauthority" -maxdepth 3 2>/dev/null | head -1 || true)
+
+              # Use wmctrl to list windows; extract the WM_CLASS application field.
+              # wmctrl -lx format: <id> <desktop> <WM_CLASS> <hostname> <title>
+              # WM_CLASS is "instance.ClassName" — we want the ClassName (last part).
+              APPS=$(sudo -u "$REAL_USER" \
+                DISPLAY="$USER_DISPLAY" \
+                ${USER_AUTH:+XAUTHORITY="$USER_AUTH"} \
+                wmctrl -lx 2>/dev/null \
+                | awk '{print $3}' \
+                | awk -F'.' '{print tolower($NF)}' \
+                | sort -u \
+                | grep -v '^$' || true)
+
+              if [ -z "$APPS" ]; then
+                echo "[hibernate-save] No windows found via wmctrl, skipping." >&2
+                exit 0
+              fi
+
+              echo "$APPS" > "$OUTFILE"
+              touch "$FLAG"
+              # Make the directory and files owned by the real user so the restore
+              # script (running as that user at login) can delete them after restoring.
+              # Root can always write into a user-owned dir, so the next save is unaffected.
+              chown "$REAL_USER" "$OUTFILE" "$FLAG" "{{ restore_state_dir }}"
+              echo "[hibernate-save] Saved $(wc -l < "$OUTFILE") app(s) to $OUTFILE"
+
+      rescue:
+        - name: Log save-script deployment failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL] save-session script deploy failed: {{ ansible_failed_result.msg | default('unknown') }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  RESTORE SCRIPT (called on boot by XDG autostart if flag exists)    #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: Deploy restore-session script
+          copy:
+            dest: "{{ restore_script }}"
+            owner: root
+            group: root
+            mode: '0755'
+            content: |
+              #!/bin/bash
+              # hibernate-restore-session.sh
+              # Called at login by the XDG autostart entry.
+              # Only runs if the 'pending-restore' flag exists (= cold boot after
+              # failed hibernation). On successful resume the flag is removed by
+              # the post-hibernate hook, so this script is a no-op in normal use.
+              set -uo pipefail
+
+              FLAG="{{ restore_state_dir }}/pending-restore"
+              INFILE="{{ restore_state_dir }}/apps.txt"
+
+              if [ ! -f "$FLAG" ]; then
+                # Successful resume — apps already restored by kernel, nothing to do.
+                exit 0
+              fi
+
+              if [ ! -f "$INFILE" ]; then
+                echo "[hibernate-restore] Flag present but no app list found, cleaning up." >&2
+                rm -f "$FLAG"
+                exit 0
+              fi
+
+              DISPLAY="${DISPLAY:-:0}"
+
+              echo "[hibernate-restore] Cold-boot detected after failed hibernation."
+              echo "[hibernate-restore] Restoring apps from $INFILE ..."
+
+              # Give the desktop environment a moment to fully load
+              sleep 4
+
+              while IFS= read -r app; do
+                [ -z "$app" ] && continue
+                if command -v "$app" >/dev/null 2>&1; then
+                  echo "[hibernate-restore] Launching: $app"
+                  DISPLAY="$DISPLAY" setsid "$app" >/dev/null 2>&1 &
+                  sleep 0.5
+                else
+                  echo "[hibernate-restore] Skipping unknown app: $app" >&2
+                fi
+              done < "$INFILE"
+
+              # Remove flag and saved list so this doesn't re-fire next login
+              rm -f "$FLAG" "$INFILE"
+              echo "[hibernate-restore] Done."
+
+      rescue:
+        - name: Log restore-script deployment failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL] restore-session script deploy failed: {{ ansible_failed_result.msg | default('unknown') }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  SYSTEMD-SLEEP HOOK (pre = save; post = clear flag)                 #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: Deploy systemd-sleep hook
+          copy:
+            dest: "{{ sleep_hook }}"
+            owner: root
+            group: root
+            mode: '0755'
+            content: |
+              #!/bin/bash
+              # hibernate-restore-hook
+              # Called by systemd before and after any sleep/hibernate event.
+              # $1: pre | post
+              # $2: suspend | hibernate | hybrid-sleep | suspend-then-hibernate
+              case "$1/$2" in
+                pre/hibernate|pre/hybrid-sleep|pre/suspend-then-hibernate)
+                  {{ save_script }}
+                  ;;
+                post/hibernate|post/hybrid-sleep|post/suspend-then-hibernate)
+                  # Successful resume — remove pending-restore flag so the
+                  # autostart restore script is skipped at next login.
+                  rm -f "{{ restore_state_dir }}/pending-restore"
+                  echo "[hibernate-restore-hook] Successful resume, flag cleared."
+                  ;;
+              esac
+
+      rescue:
+        - name: Log sleep-hook deployment failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL] systemd-sleep hook deploy failed: {{ ansible_failed_result.msg | default('unknown') }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  XDG AUTOSTART (cold-boot fallback, runs restore script at login)   #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: Ensure XDG autostart directory exists
+          file:
+            path: "{{ autostart_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: '0755'
+
+        - name: Deploy XDG autostart entry for restore script
+          copy:
+            dest: "{{ autostart_dir }}/hibernate-restore-session.desktop"
+            owner: root
+            group: root
+            mode: '0644'
+            content: |
+              [Desktop Entry]
+              Type=Application
+              Name=Hibernate Session Restore
+              Comment=Restores apps open before hibernation if power was lost
+              Exec={{ restore_script }}
+              Terminal=false
+              Hidden=false
+              X-GNOME-Autostart-enabled=true
+
+      rescue:
+        - name: Log autostart deployment failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL] XDG autostart deploy failed: {{ ansible_failed_result.msg | default('unknown') }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  PHASE 4b: STATE DIRECTORY                                          #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: "[4/8] Create restore state directory"
+          file:
+            path: "{{ restore_state_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: '0755'
+
+      rescue:
+        - name: Log state-dir failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL][4/8] Could not create {{ restore_state_dir }}: {{ ansible_failed_result.msg | default('unknown') }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  PHASE 5: LIVE SAVE TEST                                            #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: "[5/8] Run save-session script (live test)"
+          command: "{{ save_script }}"
+          register: save_test
+          changed_when: false
+
+        - name: "[5/8] Verify apps.txt was created"
+          stat:
+            path: "{{ restore_state_dir }}/apps.txt"
+          register: apps_stat
+          failed_when: not apps_stat.stat.exists
+
+        - name: "[5/8] Read saved app list"
+          command: "cat {{ restore_state_dir }}/apps.txt"
+          register: apps_content
+          changed_when: false
+
+        - name: "[5/8] Verify pending-restore flag was created"
+          stat:
+            path: "{{ restore_state_dir }}/pending-restore"
+          register: flag_stat
+          failed_when: not flag_stat.stat.exists
+
+        - name: Log live save test result
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[5/8] Live save test: OK — saved apps: {{ apps_content.stdout_lines | join(', ') }}"
+            state: present
+            create: yes
+          become: no
+
+      rescue:
+        - name: Log live save test failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL][5/8] Live save test: {{ ansible_failed_result.msg | default(ansible_failed_result.stdout | default('unknown')) }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  PHASE 6: HOOK WIRING TEST                                          #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: "[6/8] Simulate pre-hibernate hook (should save + create flag)"
+          command: "{{ sleep_hook }} pre hibernate"
+          register: pre_hook_test
+          changed_when: false
+
+        - name: "[6/8] Verify flag exists after pre hook"
+          stat:
+            path: "{{ restore_state_dir }}/pending-restore"
+          register: flag_after_pre
+          failed_when: not flag_after_pre.stat.exists
+
+        - name: "[6/8] Simulate post-hibernate hook (should clear flag)"
+          command: "{{ sleep_hook }} post hibernate"
+          register: post_hook_test
+          changed_when: false
+
+        - name: "[6/8] Verify flag is gone after post hook (successful resume path)"
+          stat:
+            path: "{{ restore_state_dir }}/pending-restore"
+          register: flag_after_post
+          failed_when: flag_after_post.stat.exists
+
+        - name: Log hook wiring test result
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[6/8] Hook wiring test: OK — pre sets flag, post clears flag"
+            state: present
+            create: yes
+          become: no
+
+      rescue:
+        - name: Log hook wiring test failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL][6/8] Hook wiring: {{ ansible_failed_result.msg | default(ansible_failed_result.stdout | default('unknown')) }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  PHASE 7: RESTORE TEST (cold-boot path)                             #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: "[7/8] Re-create flag to simulate cold-boot scenario"
+          file:
+            path: "{{ restore_state_dir }}/pending-restore"
+            state: touch
+            owner: "{{ ansible_env.SUDO_USER | default('root') }}"
+            mode: '0644'
+
+        - name: "[7/8] Ensure apps.txt is owned by the real user for restore"
+          file:
+            path: "{{ restore_state_dir }}/apps.txt"
+            owner: "{{ ansible_env.SUDO_USER | default('root') }}"
+          when: ansible_env.SUDO_USER is defined
+
+        - name: "[7/8] Run restore script as the real user (simulates login autostart)"
+          become: no
+          command: "{{ restore_script }}"
+          register: restore_test
+          ignore_errors: yes
+
+        - name: "[7/8] Verify flag and apps.txt are cleaned up after restore"
+          stat:
+            path: "{{ item }}"
+          register: cleanup_check
+          loop:
+            - "{{ restore_state_dir }}/pending-restore"
+            - "{{ restore_state_dir }}/apps.txt"
+
+        - name: Assert flag and apps.txt were deleted by restore script
+          assert:
+            that: not item.stat.exists
+            fail_msg: "{{ item.item }} was not cleaned up by the restore script"
+          loop: "{{ cleanup_check.results }}"
+
+        - name: Log restore test result
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[7/8] Restore test: OK — cold-boot path fired and cleaned up state files"
+            state: present
+            create: yes
+          become: no
+
+      rescue:
+        - name: Log restore test failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL][7/8] Restore test: {{ ansible_failed_result.msg | default(ansible_failed_result.stdout | default('unknown')) }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  PHASE 8: READINESS REPORT                                          #
+    # ------------------------------------------------------------------ #
+    - block:
+        - name: "[8/8] Final: verify all deployed files are in place"
+          stat:
+            path: "{{ item }}"
+          register: file_checks
+          loop:
+            - "{{ save_script }}"
+            - "{{ restore_script }}"
+            - "{{ sleep_hook }}"
+            - "{{ autostart_dir }}/hibernate-restore-session.desktop"
+
+        - name: "[8/8] Read current GRUB resume params"
+          shell: "grep -oP 'resume=UUID=[0-9a-f-]+|resume_offset=[0-9]+' /etc/default/grub || echo 'NOT FOUND'"
+          register: final_grub
+          changed_when: false
+
+        - name: "[8/8] Write readiness report to log"
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "{{ item }}"
+            state: present
+            create: yes
+          loop:
+            - "================================================"
+            - "HIBERNATE READINESS REPORT"
+            - "================================================"
+            - "GRUB resume params  : {{ final_grub.stdout_lines | join(' | ') }}"
+            - "Initramfs RESUME    : {{ initramfs_verify.stdout | default('NOT CHECKED') }}"
+            - "save-session script : {{ (file_checks.results[0].stat.exists) | ternary('OK','MISSING') }}"
+            - "restore-session     : {{ (file_checks.results[1].stat.exists) | ternary('OK','MISSING') }}"
+            - "systemd-sleep hook  : {{ (file_checks.results[2].stat.exists) | ternary('OK','MISSING') }}"
+            - "XDG autostart       : {{ (file_checks.results[3].stat.exists) | ternary('OK','MISSING') }}"
+            - "================================================"
+            - "SYSTEM IS READY TO TEST HIBERNATE"
+            - "  Run:  hibernate"
+            - "  On successful resume: all apps restored by kernel, no action needed"
+            - "  On cold boot (power loss): restore script fires at login"
+            - "================================================"
+          become: no
+
+        - name: Show readiness report in Ansible output
+          debug:
+            msg:
+              - "================================================"
+              - "HIBERNATE READINESS REPORT"
+              - "GRUB params: {{ final_grub.stdout_lines | join(' | ') }}"
+              - "Initramfs:   {{ initramfs_verify.stdout | default('NOT CHECKED') }}"
+              - "All scripts: {{ 'OK' if file_checks.results | selectattr('stat.exists') | list | length == 4 else 'SOME MISSING' }}"
+              - ">>> READY. You may now run: hibernate"
+              - ">>> A reboot is required first to activate the new GRUB params."
+              - "================================================"
+
+      rescue:
+        - name: Log readiness report failure
+          lineinfile:
+            path: "{{ test_log }}"
+            line: "[FAIL][8/8] Readiness report: {{ ansible_failed_result.msg | default('unknown') }}"
+            state: present
+            create: yes
+          become: no
+
+    # ------------------------------------------------------------------ #
+    #  CLEANUP TAG (reverts GRUB + removes all deployed files)            #
+    # ------------------------------------------------------------------ #
+    - name: "[CLEANUP] Reset NVreg_PreserveVideoMemoryAllocations in modprobe.d"
+      tags: [cleanup, never]
+      copy:
+        dest: /etc/modprobe.d/nvidia-power-management.conf
+        content: "options nvidia NVreg_PreserveVideoMemoryAllocations=1\n"
+        owner: root
+        group: root
+        mode: '0644'
+      ignore_errors: yes
+
+    - name: "[CLEANUP] Restore original GRUB from backup"
+      tags: [cleanup, never]
+      copy:
+        src:  /etc/default/grub.hibernate-test.bak
+        dest: /etc/default/grub
+        remote_src: yes
+      ignore_errors: yes
+
+    - name: "[CLEANUP] Run update-grub to revert params"
+      tags: [cleanup, never]
+      command: update-grub
+      ignore_errors: yes
+
+    - name: "[CLEANUP] Remove all deployed files and state"
+      tags: [cleanup, never]
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ save_script }}"
+        - "{{ restore_script }}"
+        - "{{ sleep_hook }}"
+        - "{{ autostart_dir }}/hibernate-restore-session.desktop"
+        - "{{ restore_state_dir }}/apps.txt"
+        - "{{ restore_state_dir }}/pending-restore"
+        - /etc/default/grub.hibernate-test.bak
